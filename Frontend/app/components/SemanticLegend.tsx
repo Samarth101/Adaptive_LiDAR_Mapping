@@ -1,22 +1,21 @@
+import { CLASSIFICATION_CONFIG } from '../lib/classificationData';
+
 export default function SemanticLegend() {
-  const legendItems = [
-    { label: 'road (drivable)', color: '#4a90d9' },
-    { label: 'curb (non-drivable)', color: '#d4870a' },
-    { label: 'vegetation', color: '#3aaa5c' },
-    { label: 'building', color: '#607b96' },
-    { label: 'pothole', color: '#e03018' },
-  ];
-  const staticObjs = [
-    { label: '[S] road barrier', color: '#e5e5e5' },
-    { label: '[S] pothole', color: '#ef4444' },
-  ];
-  const dynamicObjs = [
-    { label: '[D] pedestrian', color: '#00e5ff' },
-    { label: '[D] bus/truck', color: '#ff6a00' },
-    { label: '[D] auto-rickshaw', color: '#a855f7' },
-    { label: '[D] bicycle', color: '#84cc16' },
-    { label: '[D] cattle', color: '#f59e0b' },
-  ];
+  const legendItems: { label: string; color: string }[] = [];
+  const staticObjs: { label: string; color: string }[] = [];
+  const dynamicObjs: { label: string; color: string }[] = [];
+
+  Object.values(CLASSIFICATION_CONFIG).forEach(group => {
+    Object.values(group).forEach(entry => {
+      if (entry.category === 'terrain') {
+        legendItems.push({ label: entry.label, color: entry.color });
+      } else if (entry.category === 'static') {
+        staticObjs.push({ label: `[S] ${entry.label}`, color: entry.color });
+      } else if (entry.category === 'dynamic') {
+        dynamicObjs.push({ label: `[D] ${entry.label}`, color: entry.color });
+      }
+    });
+  });
 
   const Item = ({ color, label }: { color: string, label: string }) => (
     <div className="flex items-center gap-1.5">

@@ -7,8 +7,7 @@ interface Props {
   metrics: FrameMetrics;
   fps: number;
   memorySavingsPct: number;
-  frameIdx: number;
-  totalFrames: number;
+  frameId: number;
 }
 
 function Bar({ value, max, colorClass }: { value: number; max: number; colorClass: string }) {
@@ -20,7 +19,7 @@ function Bar({ value, max, colorClass }: { value: number; max: number; colorClas
   );
 }
 
-export default function MetricsHUD({ metrics, fps, memorySavingsPct, frameIdx, totalFrames }: Props) {
+export default function MetricsHUD({ metrics, fps, memorySavingsPct, frameId }: Props) {
   const risk = metrics.collision_risk;
   const riskColorClass = risk > 0.6 ? 'bg-destructive' : risk > 0.3 ? 'bg-primary' : 'bg-primary/60';
   const riskTextClass = risk > 0.6 ? 'text-destructive' : 'text-foreground';
@@ -28,7 +27,7 @@ export default function MetricsHUD({ metrics, fps, memorySavingsPct, frameIdx, t
   return (
     <div className="p-4 h-fit space-y-3">
       <div className="text-sm">
-        <span className='text-muted-foreground'>Frame</span> - {frameIdx + 1} / {totalFrames}
+        <span className='text-muted-foreground'>Frame</span> - {frameId}
       </div>
       <Separator />
       <div className="flex flex-col gap-5">

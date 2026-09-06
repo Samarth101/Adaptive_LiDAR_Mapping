@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useRef, useMemo, useEffect, useState } from 'react';
+import { Suspense, useRef, useMemo, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Html } from '@react-three/drei';
 import * as THREE from 'three';
@@ -8,6 +8,7 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { ErrorBoundary } from './ErrorBoundary';
 import type { DemoData, Frame, LidarPoint } from '../types/dataset';
 import { OBJ_TYPE_COLORS, getObjectClass } from '../lib/foveatedGrid';
+import { LIDAR_RGB } from '../lib/classificationData';
 
 // ─── Coordinate mapping ───────────────────────────────────────────────────────
 // Dataset: X=forward, Y=lateral, Z=height
@@ -39,19 +40,10 @@ const FRAG = /* glsl */`
 `;
 
 // ─── Classification colors (linear RGB) ───────────────────────────────────────
-const LIDAR_RGB: Record<string, [number, number, number]> = {
-  road:       [0.36, 0.55, 0.85],
-  curb:       [0.88, 0.63, 0.19],
-  building:   [0.44, 0.57, 0.69],
-  vegetation: [0.29, 0.67, 0.38],
-  pothole:    [0.88, 0.31, 0.19],
-  cattle:     [0.83, 0.71, 0.29],
-};
-const FALLBACK_RGB: [number, number, number] = [0.55, 0.55, 0.55];
 
 // Near/mid thresholds (squared)
 const NEAR_SQ = 15 * 15;
-const MID_SQ  = 45 * 45;
+const MID_SQ = 45 * 45;
 
 // ─── PointCloud ───────────────────────────────────────────────────────────────
 function PointCloud({ points, carPosRef, frameIdxRef }: {
@@ -59,32 +51,35 @@ function PointCloud({ points, carPosRef, frameIdxRef }: {
   carPosRef: React.RefObject<THREE.Vector3>;
   frameIdxRef: React.RefObject<number>;
 }) {
-  const geoRef   = useRef<THREE.BufferGeometry>(null);
-  const lastFi   = useRef(-1);
+  const geoRef = useRef<THREE.BufferGeometry>(null);
+  const lastFi = useRef(-1);
 
   const { positions, baseColors, colorBuffer } = useMemo(() => {
     const n = points.length;
-    const positions   = new Float32Array(n * 3);
-    const baseColors  = new Float32Array(n * 4);
+    const positions = new Float32Array(n * 3);
+    const baseColors = new Float32Array(n * 4);
     const colorBuffer = new Float32Array(n * 4);
 
     for (let i = 0; i < n; i++) {
       const [tx, ty, tz] = d2t(points[i].position);
-      positions[i * 3]     = tx;
+      positions[i * 3] = tx;
       positions[i * 3 + 1] = ty;
       positions[i * 3 + 2] = tz;
 
-      const rgb = LIDAR_RGB[points[i].classification] ?? FALLBACK_RGB;
-      baseColors[i * 4]     = rgb[0];
-      baseColors[i * 4 + 1] = rgb[1];
-      baseColors[i * 4 + 2] = rgb[2];
-      baseColors[i * 4 + 3] = 1.0;
+      const rgb = LIDAR_RGB[points[i].classification];
+      const isKnown = !!rgb;
+      const actualRgb = rgb ?? [0, 0, 0];
+
+      baseColors[i * 4] = actualRgb[0];
+      baseColors[i * 4 + 1] = actualRgb[1];
+      baseColors[i * 4 + 2] = actualRgb[2];
+      baseColors[i * 4 + 3] = isKnown ? 1.0 : 0.0;
 
       // Initial: everything dim
-      colorBuffer[i * 4]     = rgb[0] * 0.15;
-      colorBuffer[i * 4 + 1] = rgb[1] * 0.15;
-      colorBuffer[i * 4 + 2] = rgb[2] * 0.15;
-      colorBuffer[i * 4 + 3] = 0.08;
+      colorBuffer[i * 4] = actualRgb[0] * 0.15;
+      colorBuffer[i * 4 + 1] = actualRgb[1] * 0.15;
+      colorBuffer[i * 4 + 2] = actualRgb[2] * 0.15;
+      colorBuffer[i * 4 + 3] = isKnown ? 0.08 : 0.0;
     }
     return { positions, baseColors, colorBuffer };
   }, [points]);
@@ -99,7 +94,7 @@ function PointCloud({ points, carPosRef, frameIdxRef }: {
     if (fi === lastFi.current) return;
     lastFi.current = fi;
 
-    const geo  = geoRef.current;
+    const geo = geoRef.current;
     const attr = geo?.getAttribute('aColor') as THREE.BufferAttribute | undefined;
     if (!attr) return;
 
@@ -109,7 +104,7 @@ function PointCloud({ points, carPosRef, frameIdxRef }: {
 
     for (let i = 0; i < n; i++) {
       const i3 = i * 3, i4 = i * 4;
-      const dx = positions[i3]     - cx;
+      const dx = positions[i3] - cx;
       const dy = positions[i3 + 1] - cy;
       const dz = positions[i3 + 2] - cz;
       const dSq = dx * dx + dy * dy + dz * dz;
@@ -120,19 +115,19 @@ function PointCloud({ points, carPosRef, frameIdxRef }: {
         alpha = 1.0; bright = 1.0;
       } else if (dSq <= MID_SQ) {
         const t = (Math.sqrt(dSq) - 15) / 30;
-        alpha  = 0.85 - 0.65 * t;
+        alpha = 0.85 - 0.65 * t;
         bright = 1.00 - 0.40 * t;
       } else {
         const d = Math.sqrt(dSq);
         const t = Math.min((d - 45) / 50, 1.0);
-        alpha  = Math.max(0.18 - 0.14 * t, 0.04);
+        alpha = Math.max(0.18 - 0.14 * t, 0.04);
         bright = Math.max(0.38 - 0.28 * t, 0.10);
       }
 
-      colors[i4]     = baseColors[i4]     * bright;
+      colors[i4] = baseColors[i4] * bright;
       colors[i4 + 1] = baseColors[i4 + 1] * bright;
       colors[i4 + 2] = baseColors[i4 + 2] * bright;
-      colors[i4 + 3] = alpha;
+      colors[i4 + 3] = baseColors[i4 + 3] > 0 ? alpha : 0.0;
     }
     attr.needsUpdate = true;
   });
@@ -155,21 +150,21 @@ function CarGLB({ carPosRef, frameIdxRef, frames }: {
   frames: Frame[];
 }) {
   const { scene } = useGLTF('/car.glb');
-  const groupRef  = useRef<THREE.Group>(null);
-  const lastFi    = useRef(-1);
+  const groupRef = useRef<THREE.Group>(null);
+  const lastFi = useRef(-1);
 
   // Center, scale and orient the GLB once
   const cloned = useMemo(() => {
     const clone = scene.clone(true);
 
     // Compute bounding box to auto-scale
-    const box    = new THREE.Box3().setFromObject(clone);
-    const size   = box.getSize(new THREE.Vector3());
+    const box = new THREE.Box3().setFromObject(clone);
+    const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
 
     // Target: 4.5m long car
     const longest = Math.max(size.x, size.y, size.z);
-    const scale   = 4.5 / longest;
+    const scale = 4.5 / longest;
     clone.scale.setScalar(scale);
 
     // Re-center after scale
@@ -212,7 +207,7 @@ function BoxCar({ carPosRef, frameIdxRef, frames }: {
   frames: Frame[];
 }) {
   const groupRef = useRef<THREE.Group>(null);
-  const lastFi   = useRef(-1);
+  const lastFi = useRef(-1);
 
   useFrame(() => {
     const fi = frameIdxRef.current ?? 0;
@@ -239,9 +234,9 @@ function BoxCar({ carPosRef, frameIdxRef, frames }: {
       <mesh position={[2.26, 0.70, -0.62]}><boxGeometry args={[0.07, 0.24, 0.40]} /><primitive object={M_H} attach="material" /></mesh>
       <mesh position={[-2.26, 0.70, 0.60]}><boxGeometry args={[0.07, 0.20, 0.38]} /><primitive object={M_R} attach="material" /></mesh>
       <mesh position={[-2.26, 0.70, -0.60]}><boxGeometry args={[0.07, 0.20, 0.38]} /><primitive object={M_R} attach="material" /></mesh>
-      {wheel([ 1.48, 0.34,  0.97])}
-      {wheel([ 1.48, 0.34, -0.97])}
-      {wheel([-1.48, 0.34,  0.97])}
+      {wheel([1.48, 0.34, 0.97])}
+      {wheel([1.48, 0.34, -0.97])}
+      {wheel([-1.48, 0.34, 0.97])}
       {wheel([-1.48, 0.34, -0.97])}
       <pointLight position={[3.0, 0.8, 0]} color="#aabbff" intensity={4} distance={12} decay={2} />
     </group>
@@ -250,11 +245,11 @@ function BoxCar({ carPosRef, frameIdxRef, frames }: {
 
 // ─── Path overlays ────────────────────────────────────────────────────────────
 function Paths({ frames, frameIdxRef }: { frames: Frame[]; frameIdxRef: React.RefObject<number> }) {
-  const pathRef  = useRef<THREE.Line>(null);
-  const lastFi   = useRef(-1);
+  const pathRef = useRef<THREE.Line>(null);
+  const lastFi = useRef(-1);
 
-  const pathGeo  = useMemo(() => new THREE.BufferGeometry(), []);
-  const pathMat  = useMemo(() => new THREE.LineBasicMaterial({ color: '#00e5ff', transparent: true, opacity: 0.8 }), []);
+  const pathGeo = useMemo(() => new THREE.BufferGeometry(), []);
+  const pathMat = useMemo(() => new THREE.LineBasicMaterial({ color: '#00e5ff', transparent: true, opacity: 0.8 }), []);
 
   useFrame(() => {
     const fi = frameIdxRef.current ?? 0;
@@ -273,7 +268,7 @@ function Paths({ frames, frameIdxRef }: { frames: Frame[]; frameIdxRef: React.Re
 // ─── Detected Objects 3D (wireframe boxes per detected_object) ───────────────
 function DetectedObjects3D({ frames, frameIdxRef }: { frames: Frame[]; frameIdxRef: React.RefObject<number> }) {
   const [fi, setFi] = useState(0);
-  
+
   useFrame(({ clock }) => {
     if (frameIdxRef.current !== null && frameIdxRef.current !== fi) {
       setFi(frameIdxRef.current);
@@ -284,12 +279,23 @@ function DetectedObjects3D({ frames, frameIdxRef }: { frames: Frame[]; frameIdxR
     <group>
       {frames[fi]?.detected_objects.map((obj, i) => {
         const [tx, , tz] = d2t(obj.position as [number, number, number]);
-        const color = OBJ_TYPE_COLORS[obj.type] ?? '#cccccc';
+        const color = OBJ_TYPE_COLORS[obj.type];
+
+        if (!color) {
+          return (
+            <Html key={i} position={[tx, 0.75, tz]} center>
+              <div className="text-[12px] bg-neutral-900/80 text-white px-2 py-1 rounded whitespace-nowrap border border-red-500/50">
+                No Data
+              </div>
+            </Html>
+          );
+        }
+
         const height = obj.size[2] || 1.5;
         const opacity = 0.5 + obj.confidence * 0.5;
         const objClass = getObjectClass(obj.type);
         const badge = objClass === 'static' ? '[S]' : objClass === 'dynamic' ? '[D]' : '';
-        
+
         return (
           <group key={i} position={[tx, height / 2, tz]} rotation={[0, -obj.heading, 0]}>
             <mesh>
@@ -317,14 +323,14 @@ function DetectedObjects3D({ frames, frameIdxRef }: { frames: Frame[]; frameIdxR
 
 // ─── Camera rig (true position-follow) ───────────────────────────────────────
 function CameraRig({ frames, frameIdxRef }: { frames: Frame[]; frameIdxRef: React.RefObject<number> }) {
-  const ctrlRef   = useRef<OrbitControlsImpl>(null);
+  const ctrlRef = useRef<OrbitControlsImpl>(null);
   const { camera } = useThree();
   const initialized = useRef(false);
 
   // Pre-allocated vectors to avoid GC pressure
-  const _carPos  = useRef(new THREE.Vector3());
+  const _carPos = useRef(new THREE.Vector3());
   const _prevTgt = useRef(new THREE.Vector3());
-  const _delta   = useRef(new THREE.Vector3());
+  const _delta = useRef(new THREE.Vector3());
 
   useFrame(() => {
     if (!ctrlRef.current) return;
@@ -386,7 +392,7 @@ function Scene({ data, frameIdxRef }: {
   return (
     <>
       <fog attach="fog" args={['#060b12', 80, 200]} />
-      <ambientLight   color="#1b2c45" intensity={5} />
+      <ambientLight color="#1b2c45" intensity={5} />
       <hemisphereLight color="#3060a0" groundColor="#080c14" intensity={2.5} />
       <directionalLight color="#c0d5ee" intensity={2} position={[30, 50, 20]} castShadow />
 

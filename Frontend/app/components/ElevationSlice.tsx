@@ -117,7 +117,6 @@ export default function ElevationSlice({ data, frameIdx }: Props) {
     const carX = frame.vehicle.position[0];
     const points = data.static_environment.lidar_points;
     const sliceWidth = 2.0;
-    let potholeFound = false; let potholeX = 0; let potholeY = 0;
 
     const slicePoints = [];
     const bins = new Map<number, number>();
@@ -169,7 +168,6 @@ export default function ElevationSlice({ data, frameIdx }: Props) {
       const b = Math.floor(Math.max(0, 1 - 2 * t) * 255);
       ctx.fillStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
       ctx.fillRect(drawX, drawY, 2, 2);
-      if (p.classification === 'pothole') { potholeFound = true; potholeX = drawX; potholeY = drawY; }
     }
 
     // Detected objects cross-sections
@@ -195,14 +193,6 @@ export default function ElevationSlice({ data, frameIdx }: Props) {
     const carW = (2 / 80) * plotW; const carH = (1.5 / 8) * plotH;
     const carDrawY = margin.top + plotH - ((-1.5 + 4) / 8) * plotH;
     ctx.strokeRect(midX - carW / 2, carDrawY - carH / 2, carW, carH);
-
-    if (potholeFound) {
-      ctx.strokeStyle = '#ff3333'; ctx.lineWidth = 1;
-      ctx.strokeRect(potholeX - 10, potholeY - 10, 20, 20);
-      ctx.fillStyle = '#ff3333'; ctx.font = '10px system-ui, sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-      ctx.fillText('pothole', potholeX, potholeY + 12);
-    }
 
     // Height gradient legend
     const legX = width - 30; const legY = margin.top + 10;

@@ -174,7 +174,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
             <div className="h-14 w-px bg-border"></div>
             <div className="min-w-30 grow">
               <div className="text-muted-foreground mb-1 text-xs">Frame</div>
-              <div className="text-lg">{frameIdx + 1} / {data.frames.length}</div>
+              <div className="text-lg">{frame.frame_id}</div>
             </div>
             <div className="h-14 w-px bg-border"></div>
             <div className="min-w-30 grow">
@@ -209,8 +209,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
                 metrics={frame.metrics}
                 fps={fps}
                 memorySavingsPct={gridResult.memorySavingsPct}
-                frameIdx={frameIdx}
-                totalFrames={data.frames.length}
+                frameId={frame.frame_id}
               />
             </div>
           </div>

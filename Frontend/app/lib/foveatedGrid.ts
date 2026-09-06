@@ -25,46 +25,19 @@ export const NEAR_CELL_SIZE = 0.05;
 export const MID_CELL_SIZE  = 0.5;
 export const FAR_CELL_SIZE  = 0.5;
 
-// -- Semantic colour palette (terrain / LiDAR classification) -----------------
-export const SEMANTIC_COLORS_HEX: Record<string, string> = {
-  drivable:        '#4a90d9',
-  'non-drivable':  '#d4870a',
-  vegetation:      '#3aaa5c',
-  building:        '#607b96',
-  // raw LiDAR classification labels
-  road:            '#4a90d9',
-  curb:            '#d4870a',
-  pothole:         '#e03018',
-  cattle:          '#c9a832',
+import {
+  SEMANTIC_COLORS_HEX,
+  OBJ_TYPE_COLORS,
+  STATIC_OBJECT_TYPES,
+  DYNAMIC_OBJECT_TYPES
+} from './classificationData';
+
+export {
+  SEMANTIC_COLORS_HEX,
+  OBJ_TYPE_COLORS,
+  STATIC_OBJECT_TYPES,
+  DYNAMIC_OBJECT_TYPES
 };
-
-// -- Object type colour palette -----------------------------------------------
-export const OBJ_TYPE_COLORS: Record<string, string> = {
-  pedestrian:      '#00e5ff',
-  bus:             '#ff6a00',
-  truck:           '#ff6a00',
-  'auto-rickshaw': '#a855f7',
-  bicycle:         '#84cc16',
-  'road barrier':  '#e5e5e5',
-  cattle:          '#f59e0b',
-  pothole:         '#ef4444',
-};
-
-// -- Static vs Dynamic classification -----------------------------------------
-// PS requirement: distinguish static obstacles from dynamic objects
-export const STATIC_OBJECT_TYPES = new Set([
-  'road barrier',
-  'pothole',
-]);
-
-export const DYNAMIC_OBJECT_TYPES = new Set([
-  'pedestrian',
-  'bus',
-  'truck',
-  'auto-rickshaw',
-  'bicycle',
-  'cattle',
-]);
 
 export function getObjectClass(type: string): 'static' | 'dynamic' | 'unknown' {
   if (STATIC_OBJECT_TYPES.has(type))  return 'static';
