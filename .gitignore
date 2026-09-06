@@ -1,0 +1,109 @@
+# ==============================================================================
+# Byte-compiled / optimized / DLL files
+# ==============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# ==============================================================================
+# Virtual Environments & Packages
+# ==============================================================================
+.venv/
+venv/
+ENV/
+env/
+pointnet_env/
+env.bak/
+venv.bak/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ==============================================================================
+# Dataset & Heavy LiDAR Data
+# ==============================================================================
+# SemanticKITTI dataset (~80GB)
+data/*
+!data/.gitkeep
+*.bin
+*.label
+
+# ==============================================================================
+# Precomputed Predictions & Intermediate Outputs
+# ==============================================================================
+predictions/*
+!predictions/.gitkeep
+*.npz
+
+# ==============================================================================
+# Checkpoints & Model Weights (GitHub blocks files > 100 MB)
+# ==============================================================================
+checkpoints/**/*.pth
+checkpoints/**/*.pt
+checkpoints/**/*.ckpt
+checkpoints/**/*.bin
+checkpoints/**/*.tar*
+checkpoints/**/*.zip
+!checkpoints/**/.gitkeep
+
+# (Optional) Allow the lightweight baseline PointNet++ checkpoint (11.8 MB)
+# Comment out the line below if you prefer to host weights externally:
+!checkpoints/pointnet2/pointnet2_semantickitti_ep29.pth
+
+# ==============================================================================
+# Cloned Third-Party Repositories
+# ==============================================================================
+# Cloned via scripts/setup_cylinder3d.sh
+third_party/
+
+# ==============================================================================
+# Jupyter Notebooks & Caches
+# ==============================================================================
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# ==============================================================================
+# Logging, Profiling & Experiments
+# ==============================================================================
+*.log
+logs/
+wandb/
+runs/
+lightning_logs/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ==============================================================================
+# Operating System & IDE Specific
+# ==============================================================================
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
