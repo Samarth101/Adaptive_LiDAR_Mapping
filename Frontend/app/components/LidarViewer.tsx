@@ -9,8 +9,9 @@ import MemorySavingsHUD from './MemorySavingsHUD';
 import SemanticLegend from './SemanticLegend';
 import { Button, buttonVariants } from '@/components/ui/button';
 import InteractiveDotPattern from './InteractiveDotPattern';
-import { Play, Pause, Moon, Sun, GitBranch } from 'lucide-react';
+import { Play, Pause, Moon, Sun, GitBranch, Settings } from 'lucide-react';
 import Image from 'next/image';
+import { deserializeBinary, FrameData } from '../lib/binaryProtocol';
 
 // Dynamic imports (WebGL / canvas — client only)
 const LidarScene = dynamic(() => import('./LidarScene'), { ssr: false });
@@ -23,37 +24,46 @@ interface Props {
 }
 
 export default function LidarViewer({ onFrameChange }: Props) {
+  // Mode Selection
+  const [mode, setMode] = useState<'simulated' | 'live'>('simulated');
+  const [model, setModel] = useState<string>('pointnet2');
+  const [availableModels, setAvailableModels] = useState<string[]>(['pointnet2', 'cylinder3d', 'minkunet']);
+  const [sequence, setSequence] = useState<string>('00');
+  const [availableSequences, setAvailableSequences] = useState<any[]>([]);
+  
+  // Data states
   const [data, setData] = useState<DemoData | null>(null);
+  const [liveFrame, setLiveFrame] = useState<FrameData | null>(null);
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
   const [frameIdx, setFrameIdx] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [fps, setFps] = useState(0);
   const [isDark, setIsDark] = useState(true);
+  const [connected, setConnected] = useState(false);
+  
+  const wsRef = useRef<WebSocket | null>(null);
 
   const frameIdxRef = useRef(0);
   const lastFpsTime = useRef(performance.now());
   const fpsFrameCount = useRef(0);
 
   useEffect(() => {
-    // Check initial theme
-    const isDarkMode = document.documentElement.classList.contains('dark');
-    setIsDark(isDarkMode);
+    setIsDark(document.documentElement.classList.contains('dark'));
   }, []);
 
   const toggleTheme = useCallback(() => {
     setIsDark((prev) => {
       const next = !prev;
-      if (next) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
+      if (next) document.documentElement.classList.add('dark');
+      else document.documentElement.classList.remove('dark');
       return next;
     });
   }, []);
 
-  // FPS counter (ticks on animation frame, lightweight)
+  // FPS counter
   useEffect(() => {
     let raf: number;
     const tick = () => {
@@ -75,6 +85,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
     frameIdxRef.current = frameIdx;
   }, [frameIdx]);
 
+  // Load Simulated Data
   useEffect(() => {
     fetch('/data/autonomous_driving_demo_data.json')
       .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() as Promise<DemoData>; })
@@ -82,25 +93,99 @@ export default function LidarViewer({ onFrameChange }: Props) {
       .catch((e: Error) => { setError(e.message); setLoading(false); });
   }, []);
 
+  // Load models from backend
   useEffect(() => {
-    if (data) onFrameChange(data.frames[frameIdx]);
-  }, [data, frameIdx, onFrameChange]);
+    fetch('http://localhost:8000/api/models')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setAvailableModels(data.map(m => m.name));
+        }
+      }).catch(e => console.error("Could not fetch models", e));
 
+    fetch('http://localhost:8000/api/sequences')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setAvailableSequences(data);
+          if (data.length > 0 && !data.find(s => s.id === sequence)) {
+            setSequence(data[0].id);
+          }
+        }
+      }).catch(e => console.error("Could not fetch sequences", e));
+  }, []);
+
+  // WebSocket for Live Data
   useEffect(() => {
-    if (!playing || !data) return;
+    if (mode === 'simulated' || !connected) {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      return;
+    }
+
+    setLiveFrame(null); // Clear old frame when reconnecting/switching
+
+    const ws = new WebSocket('ws://localhost:8000/ws/stream');
+    ws.binaryType = 'arraybuffer';
+    
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ action: "start", model: model, sequence: sequence }));
+    };
+
+    ws.onmessage = (event) => {
+      if (typeof event.data === 'string') {
+        console.log("WS msg:", event.data);
+      } else {
+        try {
+          const frame = deserializeBinary(event.data);
+          setLiveFrame(frame);
+        } catch (e) {
+          console.error("Binary parse error:", e);
+        }
+      }
+    };
+    
+    ws.onerror = (e) => {
+      console.error("WS error:", e);
+    };
+
+    ws.onclose = () => {
+      console.log("WS connection closed");
+    };
+
+    wsRef.current = ws;
+
+    return () => {
+      ws.close();
+    };
+  }, [mode, sequence, model, connected]);
+
+  // Handle Play/Pause for Live WS
+  useEffect(() => {
+    if (mode === 'live' && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ action: playing ? 'resume' : 'pause' }));
+    }
+  }, [playing, mode]);
+
+  // Simulated playback loop
+  useEffect(() => {
+    if (!playing || !data || mode === 'live') return;
     const id = setInterval(() => setFrameIdx((i) => (i + 1) % data.frames.length), 500);
     return () => clearInterval(id);
-  }, [playing, data]);
+  }, [playing, data, mode]);
+
+  useEffect(() => {
+    if (data && mode === 'simulated') onFrameChange(data.frames[frameIdx]);
+  }, [data, frameIdx, onFrameChange, mode]);
 
   const togglePlay = useCallback(() => setPlaying((p) => !p), []);
 
-  // Compute grid result centrally to share with HUDs
-  const gridResult = useMemo(() => {
+  const simulatedGridResult = useMemo(() => {
     if (!data) return null;
     const frame = data.frames[frameIdx];
-    const egoX = frame.vehicle.position[0];
-    const egoY = frame.vehicle.position[1];
-    return buildFoveatedGrid(data.static_environment.lidar_points, egoX, egoY);
+    return buildFoveatedGrid(data.static_environment.lidar_points, frame.vehicle.position[0], frame.vehicle.position[1]);
   }, [data, frameIdx]);
 
   if (loading) {
@@ -111,7 +196,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
       </div>
     );
   }
-  if (error || !data || !gridResult) {
+  if (error || !data || !simulatedGridResult) {
     return (
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-background text-foreground">
         <p>Failed to load</p>
@@ -121,6 +206,18 @@ export default function LidarViewer({ onFrameChange }: Props) {
   }
 
   const frame = data.frames[frameIdx];
+  
+  // Create unified representation to pass to components
+  // To avoid rewriting every component heavily, we pass `mode`, `liveFrame`, `data` (sim data) and let them handle it.
+  
+  const currentSpeed = mode === 'simulated' ? frame.vehicle.speed_kmh.toFixed(1) : (liveFrame ? 'N/A' : '0.0');
+  const currentObjects = mode === 'simulated' ? frame.detected_objects.length : (liveFrame?.obj_id?.length ?? 0);
+  const currentFrameId = mode === 'simulated' ? frame.frame_id : (liveFrame?.frame_id ?? 0);
+  const memorySavings = mode === 'simulated' ? 
+    (simulatedGridResult?.memorySavingsPct ?? 0) : 
+    (liveFrame?.raw_x && liveFrame?.cell_x ? 
+      Math.max(0, 100 - (liveFrame.cell_x.length / liveFrame.raw_x.length) * 100) : 
+      0);
 
   return (
     <div className="w-screen bg-transparent text-foreground overflow-y-auto overflow-x-hidden min-h-screen pb-12 relative">
@@ -131,17 +228,59 @@ export default function LidarViewer({ onFrameChange }: Props) {
         <Image src="/logo.png" alt="Data Exploiters Logo" width={150} height={32} className="h-6 w-auto dark:invert" />
       </div>
       <div className="fixed top-3 right-3 w-fit bg-card/30 backdrop-blur-xs px-3 py-2 rounded-full flex items-center gap-3 z-50 border">
-        <a
-          href="https://github.com"
-          target="_blank"
-          rel="noreferrer"
-          className='mx-1 rounded-full'
-        >
-          <Image src="/github.svg" alt="GitHub" width={24} height={24} className="dark:invert opacity-80 hover:opacity-100 transition-opacity" />
-        </a>
+        
+        {/* Mode Selector */}
+        <div className="flex bg-muted rounded-full p-1 text-sm border border-border">
+            <button 
+                onClick={() => setMode('simulated')} 
+                className={`px-3 py-1 rounded-full transition-colors ${mode === 'simulated' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}>
+                Simulated
+            </button>
+            <button 
+                onClick={() => setMode('live')} 
+                className={`px-3 py-1 rounded-full transition-colors ${mode === 'live' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground'}`}>
+                Live Backend
+            </button>
+        </div>
+
+        {/* Model Selector */}
+        {mode === 'live' && (
+            <select 
+                className="bg-background border border-border rounded-full px-3 py-1.5 text-sm"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+            >
+                {availableModels.map(m => (
+                    <option key={m} value={m}>{m}</option>
+                ))}
+            </select>
+        )}
+        
+        {/* Sequence Selector */}
+        {mode === 'live' && (
+            <select 
+                className="bg-background border border-border rounded-full px-3 py-1.5 text-sm"
+                value={sequence}
+                onChange={(e) => setSequence(e.target.value)}
+            >
+                {availableSequences.map(s => (
+                    <option key={s.id} value={s.id}>Seq {s.id} ({s.frame_count} frames)</option>
+                ))}
+            </select>
+        )}
+
+        {mode === 'live' && (
+            <button
+                onClick={() => setConnected(!connected)}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${connected ? 'bg-destructive text-destructive-foreground' : 'bg-primary text-primary-foreground'}`}
+            >
+                {connected ? 'Disconnect' : 'Connect'}
+            </button>
+        )}
+
         <button
           onClick={toggleTheme}
-          className="relative flex gap-2 w-fit h-fit rounded-full bg-muted transition-colors p-2 cursor-pointer"
+          className="relative flex gap-2 w-fit h-fit rounded-full bg-muted transition-colors p-2 cursor-pointer ml-2"
           aria-label="Toggle Theme"
         >
           <Sun className="w-4 h-4 text-zinc-400 dark:text-zinc-600" />
@@ -174,17 +313,17 @@ export default function LidarViewer({ onFrameChange }: Props) {
             <div className="h-14 w-px bg-border"></div>
             <div className="min-w-30 grow">
               <div className="text-muted-foreground mb-1 text-xs">Frame</div>
-              <div className="text-lg">{frame.frame_id}</div>
+              <div className="text-lg">{currentFrameId}</div>
             </div>
             <div className="h-14 w-px bg-border"></div>
             <div className="min-w-30 grow">
               <div className="text-muted-foreground mb-1 text-xs">Speed</div>
-              <div className="text-lg">{frame.vehicle.speed_kmh.toFixed(1)} km/h</div>
+              <div className="text-lg">{currentSpeed} km/h</div>
             </div>
             <div className="h-14 w-px bg-border"></div>
             <div className="min-w-30 grow">
               <div className="text-muted-foreground mb-1 text-xs">Objects Detected</div>
-              <div className="text-lg">{data.frames[frameIdx].detected_objects.length}</div>
+              <div className="text-lg">{currentObjects}</div>
             </div>
           </div>
         </div>
@@ -202,14 +341,19 @@ export default function LidarViewer({ onFrameChange }: Props) {
 
           <div className="flex gap-3 justify-center">
             <div className="relative grow h-140 bg-background rounded-md overflow-hidden">
-              <LidarScene data={data} frameIdxRef={frameIdxRef} />
+              <LidarScene data={data} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} />
             </div>
             <div className="w-74 h-fit bg-card rounded-md">
               <MetricsHUD
-                metrics={frame.metrics}
+                metrics={mode === 'simulated' ? frame.metrics : {
+                  latency_ms: 0,
+                  objects_detected: currentObjects,
+                  collision_risk: 0,
+                  perception_latency_ms: 0,
+                }}
                 fps={fps}
-                memorySavingsPct={gridResult.memorySavingsPct}
-                frameId={frame.frame_id}
+                memorySavingsPct={memorySavings}
+                frameId={currentFrameId}
               />
             </div>
           </div>
@@ -227,11 +371,11 @@ export default function LidarViewer({ onFrameChange }: Props) {
           </div>
           <div className="flex gap-3 justify-center">
             <div className="w-74 h-fit bg-card rounded-md">
-              <MemorySavingsHUD gridResult={gridResult} />
+              <MemorySavingsHUD gridResult={simulatedGridResult} mode={mode} liveFrame={liveFrame} />
             </div>
             <div className="w-full grow space-y-3">
               <div className="relative w-full h-140 bg-background rounded-md overflow-hidden">
-                <SemanticMap2D data={data} frameIdx={frameIdx} />
+                <SemanticMap2D data={data} frameIdx={frameIdx} mode={mode} liveFrame={liveFrame} />
               </div>
               <SemanticLegend />
             </div>
@@ -249,22 +393,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
             </div>
           </div>
           <div className="relative w-full h-140 bg-background rounded-md overflow-hidden">
-            <ElevationMap3D data={data} frameIdxRef={frameIdxRef} />
-          </div>
-        </div>
-
-        {/* Panel 4: Cross-section & Accuracy */}
-        <div className="bg-card/30 backdrop-blur-xs border border-border rounded-xl shadow-sm h-fit p-3 relative">
-          <div className="w-full flex justify-between gap-3 mb-3">
-            <div className="w-fit h-fit bg-card rounded-sm px-3 py-2 text-sm">
-              Cross-Section & Accuracy
-            </div>
-            <div className="w-fit h-fit rounded-sm px-3 py-2 text-sm text-muted-foreground">
-              2D · Elevation Slice / Classification
-            </div>
-          </div>
-          <div className="flex-1 relative overflow-hidden">
-            <ElevationSlice data={data} frameIdx={frameIdx} />
+            <ElevationMap3D data={data} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} />
           </div>
         </div>
 

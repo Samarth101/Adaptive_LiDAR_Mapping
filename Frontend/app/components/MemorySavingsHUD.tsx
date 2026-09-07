@@ -1,11 +1,40 @@
 import type { FoveatedGridResult } from '../lib/foveatedGrid';
+import type { FrameData } from '../lib/binaryProtocol';
 
 interface Props {
-  gridResult: FoveatedGridResult;
+  gridResult: FoveatedGridResult | null;
+  mode: 'simulated' | 'live';
+  liveFrame: FrameData | null;
 }
 
-export default function MemorySavingsHUD({ gridResult }: Props) {
-  const { memorySavingsPct, nearCount, midCount, farCount, totalCount } = gridResult;
+export default function MemorySavingsHUD({ gridResult, mode, liveFrame }: Props) {
+  let memorySavingsPct = 0;
+  let nearCount = 0;
+  let midCount = 0;
+  let farCount = 0;
+  let totalCount = 0;
+
+  if (mode === 'simulated' && gridResult) {
+    memorySavingsPct = gridResult.memorySavingsPct;
+    nearCount = gridResult.nearCount;
+    midCount = gridResult.midCount;
+    farCount = gridResult.farCount;
+    totalCount = nearCount + midCount + farCount;
+  } else if (mode === 'live' && liveFrame && liveFrame.cell_x) {
+    totalCount = liveFrame.cell_x.length;
+    const rawCount = liveFrame.raw_x ? liveFrame.raw_x.length : 120000;
+    memorySavingsPct = Math.max(0, 100 - (totalCount / rawCount) * 100);
+
+    // Count cells per band
+    for (let i = 0; i < totalCount; i++) {
+      const x = liveFrame.cell_x[i];
+      const y = liveFrame.cell_y[i];
+      const dist = Math.sqrt(x * x + y * y);
+      if (dist < 5.0) nearCount++;
+      else if (dist < 20.0) midCount++;
+      else farCount++;
+    }
+  }
 
   return (
     <div className="h-fit w-full text-sm p-4 justify-center text-foreground">

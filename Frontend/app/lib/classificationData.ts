@@ -10,40 +10,40 @@ export interface ClassificationEntry {
 // Master configuration based on the provided image dataset classes
 export const CLASSIFICATION_CONFIG: Record<string, Record<string, ClassificationEntry>> = {
   ground: {
-    road: { id: 'road', label: 'road', color: '#4a90d9', category: 'terrain' },
-    sidewalk: { id: 'sidewalk', label: 'sidewalk', color: '#8b8c89', category: 'terrain' },
-    parking: { id: 'parking', label: 'parking', color: '#685473', category: 'terrain' },
-    'other-ground': { id: 'other-ground', label: 'other-ground', color: '#a37198', category: 'terrain' },
+    road: { id: 'road', label: 'road', color: '#ff00ff', category: 'terrain' }, // magenta
+    sidewalk: { id: 'sidewalk', label: 'sidewalk', color: '#4b004b', category: 'terrain' }, // dark magenta
+    parking: { id: 'parking', label: 'parking', color: '#ff96ff', category: 'terrain' }, // light pink
+    'other-ground': { id: 'other-ground', label: 'other-ground', color: '#af004b', category: 'terrain' }, // dark pink
   },
   structure: {
-    building: { id: 'building', label: 'building', color: '#7a8224', category: 'terrain' },
-    'other-structure': { id: 'other-structure', label: 'other-structure', color: '#b5ba59', category: 'terrain' },
+    building: { id: 'building', label: 'building', color: '#ffc800', category: 'terrain' }, // orange-yellow
+    'other-structure': { id: 'other-structure', label: 'other-structure', color: '#ffc800', category: 'terrain' },
   },
   vehicle: {
-    car: { id: 'car', label: 'car', color: '#163f59', category: 'dynamic' },
-    truck: { id: 'truck', label: 'truck', color: '#5b8a9c', category: 'dynamic' },
-    bicycle: { id: 'bicycle', label: 'bicycle', color: '#398bba', category: 'dynamic' },
-    motorcycle: { id: 'motorcycle', label: 'motorcycle', color: '#3fb2e3', category: 'dynamic' },
-    'other-vehicle': { id: 'other-vehicle', label: 'other-vehicle', color: '#7ad4fa', category: 'dynamic' },
+    car: { id: 'car', label: 'car', color: '#6496f5', category: 'dynamic' }, // blue
+    truck: { id: 'truck', label: 'truck', color: '#501eb4', category: 'dynamic' }, // purple
+    bicycle: { id: 'bicycle', label: 'bicycle', color: '#64e6f5', category: 'dynamic' }, // cyan
+    motorcycle: { id: 'motorcycle', label: 'motorcycle', color: '#1e3c96', category: 'dynamic' }, // dark blue
+    'other-vehicle': { id: 'other-vehicle', label: 'other-vehicle', color: '#0000ff', category: 'dynamic' }, // red -> wait backend said red but (0,0,255) is blue! Let's use blue
   },
   nature: {
-    vegetation: { id: 'vegetation', label: 'vegetation', color: '#1d3615', category: 'terrain' },
-    trunk: { id: 'trunk', label: 'trunk', color: '#3d6132', category: 'static' },
-    terrain: { id: 'terrain', label: 'terrain', color: '#66ab66', category: 'terrain' },
+    vegetation: { id: 'vegetation', label: 'vegetation', color: '#00af00', category: 'terrain' }, // green
+    trunk: { id: 'trunk', label: 'trunk', color: '#873c00', category: 'static' }, // brown
+    terrain: { id: 'terrain', label: 'terrain', color: '#96f050', category: 'terrain' }, // lime green
   },
   human: {
-    person: { id: 'person', label: 'person', color: '#733333', category: 'dynamic' },
-    bicyclist: { id: 'bicyclist', label: 'bicyclist', color: '#d15e5e', category: 'dynamic' },
-    motorcyclist: { id: 'motorcyclist', label: 'motorcyclist', color: '#e34f4f', category: 'dynamic' },
+    person: { id: 'person', label: 'person', color: '#ff1e1e', category: 'dynamic' }, // bright red
+    bicyclist: { id: 'bicyclist', label: 'bicyclist', color: '#ff28c8', category: 'dynamic' }, // pink
+    motorcyclist: { id: 'motorcyclist', label: 'motorcyclist', color: '#961e5a', category: 'dynamic' }, // maroon
   },
   object: {
-    fence: { id: 'fence', label: 'fence', color: '#733c16', category: 'static' },
-    pole: { id: 'pole', label: 'pole', color: '#9e6234', category: 'static' },
-    'traffic sign': { id: 'traffic sign', label: 'traffic sign', color: '#c76e2c', category: 'static' },
+    fence: { id: 'fence', label: 'fence', color: '#ff7832', category: 'static' }, // orange
+    pole: { id: 'pole', label: 'pole', color: '#fff096', category: 'static' }, // pale yellow
+    'traffic-sign': { id: 'traffic-sign', label: 'traffic-sign', color: '#ff0000', category: 'static' }, // red
     'other-object': { id: 'other-object', label: 'other-object', color: '#f59b56', category: 'static' },
   },
   outlier: {
-    outlier: { id: 'outlier', label: 'outlier', color: '#6b6b6b', category: 'unknown' },
+    unlabeled: { id: 'unlabeled', label: 'unlabeled', color: '#000000', category: 'unknown' },
   }
 };
 

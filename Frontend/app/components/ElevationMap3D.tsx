@@ -2,164 +2,211 @@
 
 import { useMemo } from 'react';
 import DeckGL from '@deck.gl/react';
-import { OrbitView, LightingEffect, AmbientLight, DirectionalLight } from '@deck.gl/core';
 import { PolygonLayer } from '@deck.gl/layers';
+import Map from 'react-map-gl/maplibre';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import type { DemoData } from '../types/dataset';
-import { buildFoveatedGrid, OBJ_TYPE_COLORS } from '../lib/foveatedGrid';
+import { buildFoveatedGrid } from '../lib/foveatedGrid';
+import type { FrameData } from '../lib/binaryProtocol';
 
-// -- Lighting --
-const ambientLight = new AmbientLight({
-  color: [255, 255, 255],
-  intensity: 1.0
-});
-const dirLight = new DirectionalLight({
-  color: [255, 255, 255],
-  intensity: 1.5,
-  direction: [-3, -5, -2]
-});
-const lightingEffect = new LightingEffect({ ambientLight, dirLight });
+const INITIAL_VIEW_STATE = {
+  longitude: 0,
+  latitude: 0,
+  zoom: 18,
+  pitch: 60,
+  bearing: 0
+};
 
-// -- Height gradient color --
-function getHeightColor(z: number): [number, number, number, number] {
-  const t = Math.max(0, Math.min(1, (z + 1) / 4));
-  const r = Math.max(0, 2 * t - 1) * 255;
-  const g = (1 - 2 * Math.abs(t - 0.5)) * 255;
-  const b = Math.max(0, 1 - 2 * t) * 255;
-  return [r, g, b, 255];
+// Convert meters to approx degrees at equator (for deck.gl)
+const M_TO_DEG = 1 / 111320;
+
+// Color gradient for elevation (blue -> green -> yellow -> red)
+function getElevationColor(z: number): [number, number, number, number] {
+  if (z < 0) return [40, 40, 150, 255];
+  if (z < 1) return [40, 150, 80, 255];
+  if (z < 3) return [200, 200, 50, 255];
+  return [220, 50, 50, 255];
 }
 
-// Helper to convert hex to rgb array
-function hexToRgb(hex: string): [number, number, number, number] {
-  const c = hex.substring(1).split('');
-  if (c.length === 3) {
-    c[0] = c[0] + c[0]; c[1] = c[1] + c[1]; c[2] = c[2] + c[2];
-  }
-  const color = parseInt(c.join(''), 16);
-  return [(color >> 16) & 255, (color >> 8) & 255, color & 255, 255];
+interface Props {
+  data: DemoData;
+  frameIdxRef: React.RefObject<number>;
+  mode: 'simulated' | 'live';
+  liveFrame: FrameData | null;
 }
 
-export default function ElevationMap3D({ data, frameIdxRef }: { data: DemoData; frameIdxRef: React.RefObject<number> }) {
+export default function ElevationMap3D({ data, frameIdxRef, mode, liveFrame }: Props) {
   const fi = frameIdxRef.current ?? 0;
-  const frame = data.frames[fi];
-  const egoX = frame.vehicle.position[0];
-  const egoY = frame.vehicle.position[1];
 
-  // 1. Get the foveated grid cells
-  const gridResult = useMemo(
-    () => buildFoveatedGrid(data.static_environment.lidar_points, egoX, egoY),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, fi] // rebuild when frame changes because ego moves
-  );
+  const layers = useMemo(() => {
+    if (mode === 'simulated') {
+      const frame = data.frames[fi];
+      if (!frame) return [];
+      
+      const gridResult = buildFoveatedGrid(data.static_environment.lidar_points, frame.vehicle.position[0], frame.vehicle.position[1]);
 
-  // 2. Map cells to PolygonLayer polygons
-  // PolygonLayer expects [x, y, z] arrays for the contour
-  const terrainData = useMemo(() => {
-    return gridResult.cells.map(cell => {
-      const hs = cell.size / 2;
-      return {
-        polygon: [
-          [cell.cx - hs, cell.cy - hs, 0],
-          [cell.cx + hs, cell.cy - hs, 0],
-          [cell.cx + hs, cell.cy + hs, 0],
-          [cell.cx - hs, cell.cy + hs, 0]
-        ],
-        elevation: cell.elevation,
-        color: getHeightColor(cell.elevation)
-      };
-    });
-  }, [gridResult]);
+      const cellLayer = new PolygonLayer({
+        id: 'elevation-cells',
+        data: gridResult.cells,
+        getPolygon: d => {
+          const hs = d.size / 2 * M_TO_DEG;
+          const cx = d.cx * M_TO_DEG;
+          const cy = d.cy * M_TO_DEG;
+          return [
+            [cx - hs, cy - hs],
+            [cx + hs, cy - hs],
+            [cx + hs, cy + hs],
+            [cx - hs, cy + hs]
+          ];
+        },
+        getFillColor: d => getElevationColor(d.elevation),
+        getElevation: d => Math.max(0.1, d.elevation),
+        extruded: true,
+        wireframe: false,
+        pickable: true
+      });
 
-  // 3. Map detected objects to PolygonLayer polygons
-  const objectData = useMemo(() => {
-    return frame.detected_objects.map(obj => {
-      // Create a bounding box polygon (ignoring rotation for simplicity in basic bounding box, 
-      // or we can calculate rotated corners if needed. Since it's deck.gl PolygonLayer, 
-      // we can do simple unrotated boxes or manually rotate the 4 corners).
-      const [ox, oy] = obj.position;
-      const hw = obj.size[0] / 2;
-      const hl = obj.size[1] / 2;
-      const h = obj.heading;
+      const objLayer = new PolygonLayer({
+        id: 'detected-objects',
+        data: frame.detected_objects,
+        getPolygon: d => {
+          const l = (d.size[0] / 2) * M_TO_DEG;
+          const w = (d.size[1] / 2) * M_TO_DEG;
+          const cx = d.position[0] * M_TO_DEG;
+          const cy = d.position[1] * M_TO_DEG;
+          const cos = Math.cos(d.heading);
+          const sin = Math.sin(d.heading);
+          
+          const rot = (x: number, y: number) => [
+            cx + x * cos - y * sin,
+            cy + x * sin + y * cos
+          ];
 
-      // Rotate corners around (ox, oy)
-      const cosH = Math.cos(-h);
-      const sinH = Math.sin(-h);
+          return [
+            rot(-l, -w),
+            rot(l, -w),
+            rot(l, w),
+            rot(-l, w)
+          ];
+        },
+        getFillColor: [255, 100, 100, 200],
+        getElevation: d => d.size[2] || 1.5,
+        extruded: true,
+        wireframe: true
+      });
 
-      const rotate = (x: number, y: number) => [
-        ox + (x * cosH - y * sinH),
-        oy + (x * sinH + y * cosH),
-        0
-      ];
+      return [cellLayer, objLayer];
+      
+    } else {
+      if (!liveFrame) return [];
 
-      return {
-        polygon: [
-          rotate(-hw, -hl),
-          rotate(hw, -hl),
-          rotate(hw, hl),
-          rotate(-hw, hl)
-        ],
-        elevation: obj.size[2] || 1.5,
-        color: hexToRgb(OBJ_TYPE_COLORS[obj.type] ?? '#cccccc')
-      };
-    });
-  }, [frame]);
-
-  const layers = [
-    new PolygonLayer({
-      id: 'terrain-blocks',
-      data: terrainData,
-      pickable: true,
-      stroked: true,
-      filled: true,
-      extruded: true,
-      wireframe: true,
-      lineWidthMinPixels: 1,
-      getPolygon: (d: any) => d.polygon,
-      getElevation: (d: any) => Math.max(d.elevation, 0.01), // extrude slightly even if 0
-      getFillColor: (d: any) => d.color,
-      getLineColor: [255, 255, 255, 40], // Faint white wireframe
-      material: {
-        ambient: 0.5,
-        diffuse: 0.8,
-        shininess: 32,
-        specularColor: [255, 255, 255]
+      // We need to convert SoA arrays to an array of objects for deck.gl, or use a custom layer.
+      // For simplicity, we convert to array of objects.
+      const cellCount = liveFrame.cell_x.length;
+      const cellsData = new Array(cellCount);
+      for(let i=0; i<cellCount; i++) {
+          cellsData[i] = {
+              x: liveFrame.cell_x[i],
+              y: liveFrame.cell_y[i],
+              res: liveFrame.cell_resolution[i],
+              elev: liveFrame.cell_ground_elev[i] + liveFrame.cell_object_height[i]
+          };
       }
-    }),
-    new PolygonLayer({
-      id: 'detected-objects',
-      data: objectData,
-      pickable: true,
-      stroked: true,
-      filled: true,
-      extruded: true,
-      wireframe: true,
-      lineWidthMinPixels: 2,
-      getPolygon: (d: any) => d.polygon,
-      getElevation: (d: any) => d.elevation,
-      getFillColor: (d: any) => {
-        const c = d.color;
-        return [c[0], c[1], c[2], 180]; // Semi-transparent objects
-      },
-      getLineColor: (d: any) => d.color
-    })
-  ];
 
-  const INITIAL_VIEW_STATE = useMemo(() => ({
-    target: [egoX, egoY, 0] as [number, number, number],
-    rotationX: 60,
-    rotationOrbit: -90,
-    zoom: 2
-  }), []); // empty deps so it doesn't reset when ego moves!
+      const cellLayer = new PolygonLayer({
+        id: 'elevation-cells-live',
+        data: cellsData,
+        getPolygon: d => {
+          const hs = d.res / 2 * M_TO_DEG;
+          // Apply ego transform if needed, but if we keep it local:
+          const cx = (d.x + liveFrame.ego_x) * M_TO_DEG;
+          const cy = (d.y + liveFrame.ego_y) * M_TO_DEG;
+          return [
+            [cx - hs, cy - hs],
+            [cx + hs, cy - hs],
+            [cx + hs, cy + hs],
+            [cx - hs, cy + hs]
+          ];
+        },
+        getFillColor: d => getElevationColor(d.elev),
+        getElevation: d => Math.max(0.1, d.elev),
+        extruded: true,
+        wireframe: false,
+      });
+      
+      const objData = [];
+      if (liveFrame.obj_id) {
+          for(let i=0; i<liveFrame.obj_id.length; i++){
+              objData.push({
+                  x: liveFrame.obj_cx![i] + liveFrame.ego_x,
+                  y: liveFrame.obj_cy![i] + liveFrame.ego_y,
+                  l: liveFrame.obj_l![i],
+                  w: liveFrame.obj_w![i],
+                  h: liveFrame.obj_h![i],
+                  heading: liveFrame.obj_heading![i]
+              });
+          }
+      }
 
-  const orbitView = useMemo(() => new OrbitView({ id: 'orbit-view' }), []);
+      const objLayer = new PolygonLayer({
+        id: 'detected-objects-live',
+        data: objData,
+        getPolygon: d => {
+          const l = (d.l / 2) * M_TO_DEG;
+          const w = (d.w / 2) * M_TO_DEG;
+          const cx = d.x * M_TO_DEG;
+          const cy = d.y * M_TO_DEG;
+          const cos = Math.cos(d.heading);
+          const sin = Math.sin(d.heading);
+          
+          const rot = (x: number, y: number) => [
+            cx + x * cos - y * sin,
+            cy + x * sin + y * cos
+          ];
+
+          return [
+            rot(-l, -w),
+            rot(l, -w),
+            rot(l, w),
+            rot(-l, w)
+          ];
+        },
+        getFillColor: [255, 100, 100, 200],
+        getElevation: d => d.h,
+        extruded: true,
+        wireframe: true
+      });
+
+      return [cellLayer, objLayer];
+    }
+  }, [fi, mode, liveFrame, data]);
+
+  const viewState = useMemo(() => {
+     let center = [0,0];
+     if (mode === 'simulated' && data.frames[fi]) {
+         center = [data.frames[fi].vehicle.position[0] * M_TO_DEG, data.frames[fi].vehicle.position[1] * M_TO_DEG];
+     } else if (liveFrame) {
+         center = [liveFrame.ego_x * M_TO_DEG, liveFrame.ego_y * M_TO_DEG];
+     }
+     return {
+         ...INITIAL_VIEW_STATE,
+         longitude: center[0],
+         latitude: center[1]
+     };
+  }, [fi, mode, liveFrame, data]);
+
 
   return (
-    <DeckGL
-      views={orbitView}
-      initialViewState={INITIAL_VIEW_STATE}
-      controller={true}
-      layers={layers}
-      effects={[lightingEffect]}
-      style={{ background: 'transparent' }}
-    />
+    <div className="absolute inset-0" onContextMenu={e => e.preventDefault()}>
+      <DeckGL
+        initialViewState={viewState}
+        controller={true}
+        layers={layers}
+      >
+        <Map
+          mapStyle="https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json"
+        />
+      </DeckGL>
+    </div>
   );
 }

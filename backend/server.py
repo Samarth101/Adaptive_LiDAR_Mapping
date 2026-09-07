@@ -392,18 +392,23 @@ async def ws_stream(websocket: WebSocket):
                     cfg.velodyne_root, cfg.label_root, current_seq, fid
                 )
 
-                # Process frame
-                result = processor.process_frame(
+                # Process frame in thread pool to prevent blocking the event loop
+                loop = asyncio.get_running_loop()
+                result = await loop.run_in_executor(
+                    None,
+                    processor.process_frame,
                     str(scan),
                     str(label) if label else None,
-                    frame_id=fid,
-                    sequence=current_seq,
+                    fid,
+                    current_seq
                 )
                 frame_data = processor.result_to_frame_data(result)
                 binary = serialize_binary(frame_data)
 
                 # Send binary frame
                 await websocket.send_bytes(binary)
+                timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+                print(f"[{timestamp}] Streamed Frame: idx={current_frame_idx}/{len(frame_list)} | seq={current_seq} | model={current_model} | points={result.num_points} | cells={result.num_cells} | fps={result.fps:.1f}")
 
                 # Advance frame
                 current_frame_idx = (current_frame_idx + 1) % len(frame_list)
@@ -420,7 +425,9 @@ async def ws_stream(websocket: WebSocket):
     except WebSocketDisconnect:
         logger.info("WebSocket client disconnected.")
     except Exception as exc:
-        logger.error(f"WebSocket error: {exc}", exc_info=True)
+        print(f"WebSocket error explicitly caught: {exc}")
+        import traceback
+        traceback.print_exc()
         try:
             await websocket.send_json({"type": "error", "message": str(exc)})
         except Exception:

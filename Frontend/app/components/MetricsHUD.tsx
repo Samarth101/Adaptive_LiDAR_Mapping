@@ -20,10 +20,6 @@ function Bar({ value, max, colorClass }: { value: number; max: number; colorClas
 }
 
 export default function MetricsHUD({ metrics, fps, memorySavingsPct, frameId }: Props) {
-  const risk = metrics.collision_risk;
-  const riskColorClass = risk > 0.6 ? 'bg-destructive' : risk > 0.3 ? 'bg-primary' : 'bg-primary/60';
-  const riskTextClass = risk > 0.6 ? 'text-destructive' : 'text-foreground';
-
   return (
     <div className="p-4 h-fit space-y-3">
       <div className="text-sm">
@@ -31,15 +27,9 @@ export default function MetricsHUD({ metrics, fps, memorySavingsPct, frameId }: 
       </div>
       <Separator />
       <div className="flex flex-col gap-5">
-        <Row label="FPS" value={fps.toFixed(0)} valueClass="text-foreground" />
+        <Row label="Render FPS" value={fps.toFixed(0)} valueClass="text-foreground" />
 
-        <BarRow label="Latency" value={metrics.latency_ms.toFixed(1) + 'ms'} barValue={metrics.latency_ms} barMax={200} barClass="bg-primary" valueClass="text-foreground" />
-
-        <BarRow label="Objects" value={String(metrics.objects_detected)} barValue={metrics.objects_detected} barMax={20} barClass="bg-primary" valueClass="text-foreground" />
-
-        <BarRow label="Risk" value={(risk * 100).toFixed(0) + '%'} barValue={risk} barMax={1} barClass={riskColorClass} valueClass={riskTextClass} />
-
-        <BarRow label="Perception" value={metrics.perception_latency_ms.toFixed(1) + 'ms'} barValue={metrics.perception_latency_ms} barMax={100} barClass="bg-primary" valueClass="text-foreground" />
+        <BarRow label="Objects Detected" value={String(metrics.objects_detected)} barValue={metrics.objects_detected} barMax={20} barClass="bg-primary" valueClass="text-foreground" />
       </div>
     </div>
   );

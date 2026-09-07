@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useRef, useMemo, useState } from 'react';
+import { Suspense, useRef, useMemo, useState, useEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Html } from '@react-three/drei';
 import * as THREE from 'three';
@@ -9,10 +9,9 @@ import { ErrorBoundary } from './ErrorBoundary';
 import type { DemoData, Frame, LidarPoint } from '../types/dataset';
 import { OBJ_TYPE_COLORS, getObjectClass } from '../lib/foveatedGrid';
 import { LIDAR_RGB } from '../lib/classificationData';
+import type { FrameData } from '../lib/binaryProtocol';
 
 // ─── Coordinate mapping ───────────────────────────────────────────────────────
-// Dataset: X=forward, Y=lateral, Z=height
-// Three.js: X=forward, Y=up, Z=into-screen
 function d2t(p: readonly [number, number, number]): [number, number, number] {
   return [p[0], p[2], -p[1]];
 }
@@ -39,50 +38,107 @@ const FRAG = /* glsl */`
   }
 `;
 
-// ─── Classification colors (linear RGB) ───────────────────────────────────────
-
-// Near/mid thresholds (squared)
 const NEAR_SQ = 15 * 15;
 const MID_SQ = 45 * 45;
 
+// CLASS NAMES FOR BACKEND ID MAPPING
+const BACKEND_CLASS_NAMES: Record<number, string> = {
+  0: "unlabeled", 1: "car", 2: "bicycle", 3: "motorcycle", 4: "truck", 5: "other-vehicle",
+  6: "person", 7: "bicyclist", 8: "motorcyclist", 9: "road", 10: "parking", 11: "sidewalk",
+  12: "other-ground", 13: "building", 14: "fence", 15: "vegetation", 16: "trunk", 17: "terrain",
+  18: "pole", 19: "traffic-sign"
+};
+
 // ─── PointCloud ───────────────────────────────────────────────────────────────
-function PointCloud({ points, carPosRef, frameIdxRef }: {
+function PointCloud({ points, mode, liveFrame, carPosRef, frameIdxRef }: {
   points: LidarPoint[];
+  mode: 'simulated' | 'live';
+  liveFrame: FrameData | null;
   carPosRef: React.RefObject<THREE.Vector3>;
   frameIdxRef: React.RefObject<number>;
 }) {
   const geoRef = useRef<THREE.BufferGeometry>(null);
   const lastFi = useRef(-1);
+  const lastFrameId = useRef(-1);
 
-  const { positions, baseColors, colorBuffer } = useMemo(() => {
-    const n = points.length;
-    const positions = new Float32Array(n * 3);
-    const baseColors = new Float32Array(n * 4);
-    const colorBuffer = new Float32Array(n * 4);
+  // Compute buffers
+  const { positions, baseColors, colorBuffer, count } = useMemo(() => {
+    if (mode === 'simulated') {
+      // SIMULATED DATA
+      const n = points.length;
+      const positions = new Float32Array(n * 3);
+      const baseColors = new Float32Array(n * 4);
+      const colorBuffer = new Float32Array(n * 4);
 
-    for (let i = 0; i < n; i++) {
-      const [tx, ty, tz] = d2t(points[i].position);
-      positions[i * 3] = tx;
-      positions[i * 3 + 1] = ty;
-      positions[i * 3 + 2] = tz;
+      for (let i = 0; i < n; i++) {
+        const [tx, ty, tz] = d2t(points[i].position);
+        positions[i * 3] = tx;
+        positions[i * 3 + 1] = ty;
+        positions[i * 3 + 2] = tz;
 
-      const rgb = LIDAR_RGB[points[i].classification];
-      const isKnown = !!rgb;
-      const actualRgb = rgb ?? [0, 0, 0];
+        const rgb = LIDAR_RGB[points[i].classification];
+        const isKnown = !!rgb;
+        const actualRgb = rgb ?? [0, 0, 0];
 
-      baseColors[i * 4] = actualRgb[0];
-      baseColors[i * 4 + 1] = actualRgb[1];
-      baseColors[i * 4 + 2] = actualRgb[2];
-      baseColors[i * 4 + 3] = isKnown ? 1.0 : 0.0;
+        baseColors[i * 4] = actualRgb[0];
+        baseColors[i * 4 + 1] = actualRgb[1];
+        baseColors[i * 4 + 2] = actualRgb[2];
+        baseColors[i * 4 + 3] = isKnown ? 1.0 : 0.0;
 
-      // Initial: everything dim
-      colorBuffer[i * 4] = actualRgb[0] * 0.15;
-      colorBuffer[i * 4 + 1] = actualRgb[1] * 0.15;
-      colorBuffer[i * 4 + 2] = actualRgb[2] * 0.15;
-      colorBuffer[i * 4 + 3] = isKnown ? 0.08 : 0.0;
+        colorBuffer[i * 4] = actualRgb[0] * 0.15;
+        colorBuffer[i * 4 + 1] = actualRgb[1] * 0.15;
+        colorBuffer[i * 4 + 2] = actualRgb[2] * 0.15;
+        colorBuffer[i * 4 + 3] = isKnown ? 0.08 : 0.0;
+      }
+      return { positions, baseColors, colorBuffer, count: n };
+    } else {
+      // LIVE BACKEND DATA
+      if (!liveFrame || !liveFrame.raw_x) {
+          return {
+              positions: new Float32Array(0),
+              baseColors: new Float32Array(0),
+              colorBuffer: new Float32Array(0),
+              count: 0
+          };
+      }
+      const n = liveFrame.raw_x.length;
+      const positions = new Float32Array(n * 3);
+      const baseColors = new Float32Array(n * 4);
+      const colorBuffer = new Float32Array(n * 4);
+
+      const xs = liveFrame.raw_x;
+      const ys = liveFrame.raw_y || new Float32Array(n);
+      const zs = liveFrame.raw_z || new Float32Array(n);
+      const sems = liveFrame.raw_semantic_id!;
+
+      for (let i = 0; i < n; i++) {
+        // Backend coordinates are already X forward, Y left, Z up.
+        const px = xs[i], py = ys[i], pz = zs[i];
+        // We use them directly so the car stays at the origin.
+        const [tx, ty, tz] = d2t([px, py, pz]);
+        
+        positions[i * 3] = tx;
+        positions[i * 3 + 1] = ty;
+        positions[i * 3 + 2] = tz;
+
+        const clsName = BACKEND_CLASS_NAMES[sems[i]] || 'unlabeled';
+        const rgb = LIDAR_RGB[clsName];
+        const isKnown = !!rgb;
+        const actualRgb = rgb ?? [0, 0, 0];
+
+        baseColors[i * 4] = actualRgb[0];
+        baseColors[i * 4 + 1] = actualRgb[1];
+        baseColors[i * 4 + 2] = actualRgb[2];
+        baseColors[i * 4 + 3] = isKnown ? 1.0 : 0.0;
+
+        colorBuffer[i * 4] = actualRgb[0] * 0.15;
+        colorBuffer[i * 4 + 1] = actualRgb[1] * 0.15;
+        colorBuffer[i * 4 + 2] = actualRgb[2] * 0.15;
+        colorBuffer[i * 4 + 3] = isKnown ? 0.08 : 0.0;
+      }
+      return { positions, baseColors, colorBuffer, count: n };
     }
-    return { positions, baseColors, colorBuffer };
-  }, [points]);
+  }, [points, mode, liveFrame]);
 
   const mat = useMemo(() => new THREE.ShaderMaterial({
     uniforms: {}, vertexShader: VERT, fragmentShader: FRAG,
@@ -90,9 +146,18 @@ function PointCloud({ points, carPosRef, frameIdxRef }: {
   }), []);
 
   useFrame(() => {
+    let shouldUpdate = false;
     const fi = frameIdxRef.current ?? 0;
-    if (fi === lastFi.current) return;
-    lastFi.current = fi;
+    
+    if (mode === 'simulated' && fi !== lastFi.current) {
+        shouldUpdate = true;
+        lastFi.current = fi;
+    } else if (mode === 'live' && liveFrame && liveFrame.frame_id !== lastFrameId.current) {
+        shouldUpdate = true;
+        lastFrameId.current = liveFrame.frame_id;
+    }
+
+    if (!shouldUpdate) return;
 
     const geo = geoRef.current;
     const attr = geo?.getAttribute('aColor') as THREE.BufferAttribute | undefined;
@@ -100,9 +165,8 @@ function PointCloud({ points, carPosRef, frameIdxRef }: {
 
     const { x: cx, y: cy, z: cz } = carPosRef.current!;
     const colors = attr.array as Float32Array;
-    const n = points.length;
 
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; i < count; i++) {
       const i3 = i * 3, i4 = i * 4;
       const dx = positions[i3] - cx;
       const dy = positions[i3 + 1] - cy;
@@ -135,88 +199,32 @@ function PointCloud({ points, carPosRef, frameIdxRef }: {
   return (
     <points frustumCulled={false}>
       <bufferGeometry ref={geoRef}>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} count={points.length} array={positions} itemSize={3} />
-        <bufferAttribute attach="attributes-aColor" args={[colorBuffer, 4]} count={points.length} array={colorBuffer} itemSize={4} />
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} count={count} array={positions} itemSize={3} />
+        <bufferAttribute attach="attributes-aColor" args={[colorBuffer, 4]} count={count} array={colorBuffer} itemSize={4} />
       </bufferGeometry>
       <primitive object={mat} attach="material" />
     </points>
   );
 }
 
-// ─── GLB Car model ────────────────────────────────────────────────────────────
-function CarGLB({ carPosRef, frameIdxRef, frames }: {
-  carPosRef: React.RefObject<THREE.Vector3>;
-  frameIdxRef: React.RefObject<number>;
-  frames: Frame[];
-}) {
-  const { scene } = useGLTF('/car.glb');
-  const groupRef = useRef<THREE.Group>(null);
-  const lastFi = useRef(-1);
-
-  // Center, scale and orient the GLB once
-  const cloned = useMemo(() => {
-    const clone = scene.clone(true);
-
-    // Compute bounding box to auto-scale
-    const box = new THREE.Box3().setFromObject(clone);
-    const size = box.getSize(new THREE.Vector3());
-    const center = box.getCenter(new THREE.Vector3());
-
-    // Target: 4.5m long car
-    const longest = Math.max(size.x, size.y, size.z);
-    const scale = 4.5 / longest;
-    clone.scale.setScalar(scale);
-
-    // Re-center after scale
-    clone.position.sub(center.multiplyScalar(scale));
-
-    // Sit on the ground (y=0)
-    const box2 = new THREE.Box3().setFromObject(clone);
-    clone.position.y -= box2.min.y;
-
-    return clone;
-  }, [scene]);
-
-  useFrame(() => {
-    const fi = frameIdxRef.current ?? 0;
-    if (!groupRef.current || fi === lastFi.current) return;
-    lastFi.current = fi;
-    const { position, heading } = frames[fi].vehicle;
-    const [tx, ty, tz] = d2t(position);
-    groupRef.current.position.set(tx, ty, tz);
-    groupRef.current.rotation.y = -heading + Math.PI / 2;
-  });
-
-  return (
-    <group ref={groupRef}>
-      <primitive object={cloned} />
-    </group>
-  );
-}
-
-// ─── Simple box-car fallback (if GLB fails) ───────────────────────────────────
+// ─── BoxCar ───────────────────────────────────────────────────
 const M_W = new THREE.MeshStandardMaterial({ color: '#f0f0ee', roughness: 0.22, metalness: 0.18 });
 const M_G = new THREE.MeshStandardMaterial({ color: '#1a2535', transparent: true, opacity: 0.75 });
 const M_T = new THREE.MeshStandardMaterial({ color: '#111', roughness: 0.9 });
 const M_H = new THREE.MeshStandardMaterial({ color: '#fff', emissive: '#7799ff', emissiveIntensity: 4 });
 const M_R = new THREE.MeshStandardMaterial({ color: '#ff2200', emissive: '#ff2200', emissiveIntensity: 3 });
 
-function BoxCar({ carPosRef, frameIdxRef, frames }: {
+function BoxCar({ carPosRef, headingRef }: {
   carPosRef: React.RefObject<THREE.Vector3>;
-  frameIdxRef: React.RefObject<number>;
-  frames: Frame[];
+  headingRef: React.RefObject<number>;
 }) {
   const groupRef = useRef<THREE.Group>(null);
-  const lastFi = useRef(-1);
 
   useFrame(() => {
-    const fi = frameIdxRef.current ?? 0;
-    if (!groupRef.current || fi === lastFi.current) return;
-    lastFi.current = fi;
-    const { position, heading } = frames[fi].vehicle;
-    const [tx, ty, tz] = d2t(position);
-    groupRef.current.position.set(tx, ty, tz);
-    groupRef.current.rotation.y = -heading;
+    if (!groupRef.current || !carPosRef.current) return;
+    const { x, y, z } = carPosRef.current;
+    groupRef.current.position.set(x, y, z);
+    groupRef.current.rotation.y = -(headingRef.current ?? 0);
   });
 
   const wheel = (pos: [number, number, number]) => (
@@ -243,123 +251,128 @@ function BoxCar({ carPosRef, frameIdxRef, frames }: {
   );
 }
 
-// ─── Path overlays ────────────────────────────────────────────────────────────
-function Paths({ frames, frameIdxRef }: { frames: Frame[]; frameIdxRef: React.RefObject<number> }) {
-  const pathRef = useRef<THREE.Line>(null);
-  const lastFi = useRef(-1);
-
-  const pathGeo = useMemo(() => new THREE.BufferGeometry(), []);
-  const pathMat = useMemo(() => new THREE.LineBasicMaterial({ color: '#00e5ff', transparent: true, opacity: 0.8 }), []);
-
-  useFrame(() => {
-    const fi = frameIdxRef.current ?? 0;
-    if (fi === lastFi.current) return;
-    lastFi.current = fi;
-    const pts = frames[fi].planned_path.map(p => {
-      const [x, y, z] = d2t(p);
-      return new THREE.Vector3(x, y + 0.1, z);
-    });
-    pathGeo.setFromPoints(pts);
-  });
-
-  return <primitive object={new THREE.Line(pathGeo, pathMat)} ref={pathRef} />;
-}
-
-// ─── Detected Objects 3D (wireframe boxes per detected_object) ───────────────
-function DetectedObjects3D({ frames, frameIdxRef }: { frames: Frame[]; frameIdxRef: React.RefObject<number> }) {
+// ─── Detected Objects 3D ───────────────
+function DetectedObjects3D({ frames, frameIdxRef, mode, liveFrame }: { 
+    frames: Frame[]; 
+    frameIdxRef: React.RefObject<number>;
+    mode: 'simulated' | 'live';
+    liveFrame: FrameData | null;
+}) {
   const [fi, setFi] = useState(0);
 
-  useFrame(({ clock }) => {
-    if (frameIdxRef.current !== null && frameIdxRef.current !== fi) {
+  useFrame(() => {
+    if (mode === 'simulated' && frameIdxRef.current !== null && frameIdxRef.current !== fi) {
       setFi(frameIdxRef.current);
     }
   });
 
-  return (
-    <group>
-      {frames[fi]?.detected_objects.map((obj, i) => {
-        const [tx, , tz] = d2t(obj.position as [number, number, number]);
-        const color = OBJ_TYPE_COLORS[obj.type];
+  if (mode === 'simulated') {
+      return (
+        <group>
+          {frames[fi]?.detected_objects.map((obj, i) => {
+            const [tx, , tz] = d2t(obj.position as [number, number, number]);
+            const color = OBJ_TYPE_COLORS[obj.type] || '#888';
+            const height = obj.size[2] || 1.5;
+            const opacity = 0.5 + obj.confidence * 0.5;
+            const objClass = getObjectClass(obj.type);
+            const badge = objClass === 'static' ? '[S]' : objClass === 'dynamic' ? '[D]' : '';
+    
+            return (
+              <group key={i} position={[tx, height / 2, tz]} rotation={[0, -obj.heading, 0]}>
+                <mesh>
+                  <boxGeometry args={[obj.size[0], height, obj.size[1]]} />
+                  <meshBasicMaterial color={color} transparent opacity={opacity * 0.2} depthWrite={false} />
+                </mesh>
+                <lineSegments>
+                  <edgesGeometry args={[new THREE.BoxGeometry(obj.size[0], height, obj.size[1])]} />
+                  <lineBasicMaterial color={color} transparent opacity={opacity} />
+                </lineSegments>
+                <Html position={[0, height / 2 + 0.5, 0]} center>
+                  <div
+                    className="text-[12px] bg-(--color-1)/70 px-1 py-0.5 rounded whitespace-nowrap border"
+                    style={{ color: color, borderColor: color }}
+                  >
+                    {badge} {obj.type}
+                  </div>
+                </Html>
+              </group>
+            );
+          })}
+        </group>
+      );
+  } else {
+      if (!liveFrame || !liveFrame.obj_id) return <group />;
+      
+      const objects = [];
+      const count = liveFrame.obj_id.length;
+      for (let i = 0; i < count; i++) {
+          const typeName = BACKEND_CLASS_NAMES[liveFrame.obj_type![i]] || 'car';
+          const color = OBJ_TYPE_COLORS[typeName] || '#888';
+          
+          // Points are in local space
+          const gx = liveFrame.obj_cx![i];
+          const gy = liveFrame.obj_cy![i];
+          const gz = liveFrame.obj_cz![i];
+          
+          const [tx, ty, tz] = d2t([gx, gy, gz]);
+          const w = liveFrame.obj_w![i];
+          const l = liveFrame.obj_l![i];
+          const h = liveFrame.obj_h![i];
+          const heading = liveFrame.obj_heading![i];
+          const opacity = 0.5 + liveFrame.obj_conf![i] * 0.5;
+          const objClass = getObjectClass(typeName);
+          const badge = objClass === 'static' ? '[S]' : objClass === 'dynamic' ? '[D]' : '';
 
-        if (!color) {
-          return (
-            <Html key={i} position={[tx, 0.75, tz]} center>
-              <div className="text-[12px] bg-neutral-900/80 text-white px-2 py-1 rounded whitespace-nowrap border border-red-500/50">
-                No Data
-              </div>
-            </Html>
+          objects.push(
+              <group key={i} position={[tx, ty, tz]} rotation={[0, -heading, 0]}>
+                <mesh>
+                  <boxGeometry args={[l, h, w]} />
+                  <meshBasicMaterial color={color} transparent opacity={opacity * 0.2} depthWrite={false} />
+                </mesh>
+                <lineSegments>
+                  <edgesGeometry args={[new THREE.BoxGeometry(l, h, w)]} />
+                  <lineBasicMaterial color={color} transparent opacity={opacity} />
+                </lineSegments>
+                <Html position={[0, h / 2 + 0.5, 0]} center>
+                  <div
+                    className="text-[12px] bg-(--color-1)/70 px-1 py-0.5 rounded whitespace-nowrap border"
+                    style={{ color: color, borderColor: color }}
+                  >
+                    {badge} {typeName}
+                  </div>
+                </Html>
+              </group>
           );
-        }
-
-        const height = obj.size[2] || 1.5;
-        const opacity = 0.5 + obj.confidence * 0.5;
-        const objClass = getObjectClass(obj.type);
-        const badge = objClass === 'static' ? '[S]' : objClass === 'dynamic' ? '[D]' : '';
-
-        return (
-          <group key={i} position={[tx, height / 2, tz]} rotation={[0, -obj.heading, 0]}>
-            <mesh>
-              <boxGeometry args={[obj.size[0], height, obj.size[1]]} />
-              <meshBasicMaterial color={color} transparent opacity={opacity * 0.2} depthWrite={false} />
-            </mesh>
-            <lineSegments>
-              <edgesGeometry args={[new THREE.BoxGeometry(obj.size[0], height, obj.size[1])]} />
-              <lineBasicMaterial color={color} transparent opacity={opacity} />
-            </lineSegments>
-            <Html position={[0, height / 2 + 0.5, 0]} center>
-              <div
-                className="text-[12px] bg-(--color-1)/70 px-1 py-0.5 rounded whitespace-nowrap border"
-                style={{ color: color, borderColor: color }}
-              >
-                {badge} {obj.type}
-              </div>
-            </Html>
-          </group>
-        );
-      })}
-    </group>
-  );
+      }
+      return <group>{objects}</group>;
+  }
 }
 
-// ─── Camera rig (true position-follow) ───────────────────────────────────────
-function CameraRig({ frames, frameIdxRef }: { frames: Frame[]; frameIdxRef: React.RefObject<number> }) {
+// ─── Camera rig ───────────────────────────────────────
+function CameraRig({ carPosRef }: { carPosRef: React.RefObject<THREE.Vector3> }) {
   const ctrlRef = useRef<OrbitControlsImpl>(null);
   const { camera } = useThree();
   const initialized = useRef(false);
 
-  // Pre-allocated vectors to avoid GC pressure
-  const _carPos = useRef(new THREE.Vector3());
   const _prevTgt = useRef(new THREE.Vector3());
   const _delta = useRef(new THREE.Vector3());
 
   useFrame(() => {
-    if (!ctrlRef.current) return;
-    const fi = frameIdxRef.current ?? 0;
-    const vp = frames[fi].vehicle.position;
-
-    _carPos.current.set(vp[0], 0, -vp[1]); // d2t at y=0
-
+    if (!ctrlRef.current || !carPosRef.current) return;
+    
     if (!initialized.current) {
-      ctrlRef.current.target.copy(_carPos.current);
-      camera.position.set(vp[0] - 18, 14, -vp[1] + 16);
-      _prevTgt.current.copy(_carPos.current);
+      ctrlRef.current.target.copy(carPosRef.current);
+      camera.position.set(carPosRef.current.x - 18, 14, carPosRef.current.z + 16);
+      _prevTgt.current.copy(carPosRef.current);
       initialized.current = true;
       ctrlRef.current.update();
       return;
     }
 
-    // Save previous target
     _prevTgt.current.copy(ctrlRef.current.target);
-
-    // Lerp target toward car
-    ctrlRef.current.target.lerp(_carPos.current, 0.05);
-
-    // Compute how much target actually moved
+    ctrlRef.current.target.lerp(carPosRef.current, 0.05);
     _delta.current.subVectors(ctrlRef.current.target, _prevTgt.current);
-
-    // Translate CAMERA by the same delta → maintains orbit offset
     camera.position.add(_delta.current);
-
     ctrlRef.current.update();
   });
 
@@ -376,17 +389,28 @@ function CameraRig({ frames, frameIdxRef }: { frames: Frame[]; frameIdxRef: Reac
 }
 
 // ─── Scene ────────────────────────────────────────────────────────────────────
-function Scene({ data, frameIdxRef }: {
+function Scene({ data, frameIdxRef, mode, liveFrame }: {
   data: DemoData;
   frameIdxRef: React.RefObject<number>;
+  mode: 'simulated' | 'live';
+  liveFrame: FrameData | null;
 }) {
   const carPosRef = useRef(new THREE.Vector3(0.9, 0, 0));
+  const headingRef = useRef(0);
 
   // Keep carPosRef current every frame
   useFrame(() => {
-    const fi = frameIdxRef.current ?? 0;
-    const vp = data.frames[fi].vehicle.position;
-    carPosRef.current.set(vp[0], vp[2], -vp[1]);
+    if (mode === 'simulated') {
+        const fi = frameIdxRef.current ?? 0;
+        const vp = data.frames[fi].vehicle.position;
+        carPosRef.current.set(vp[0], vp[2], -vp[1]);
+        headingRef.current = data.frames[fi].vehicle.heading;
+    } else if (liveFrame) {
+        const vp = [0, 0, 0];
+        const [tx, ty, tz] = d2t(vp as [number, number, number]);
+        carPosRef.current.set(tx, ty, tz);
+        headingRef.current = liveFrame.ego_heading;
+    }
   });
 
   return (
@@ -399,40 +423,30 @@ function Scene({ data, frameIdxRef }: {
       {/* Ground grid */}
       <gridHelper args={[300, 60, '#121e30', '#0e1924']} position={[50, 0, 0]} />
 
-      {/* 50k LiDAR points */}
       <PointCloud
         points={data.static_environment.lidar_points}
         carPosRef={carPosRef}
         frameIdxRef={frameIdxRef}
+        mode={mode}
+        liveFrame={liveFrame}
       />
 
-      {/* Car model – GLB with box fallback */}
-      <ErrorBoundary fallback={
-        <BoxCar carPosRef={carPosRef} frameIdxRef={frameIdxRef} frames={data.frames} />
-      }>
-        <Suspense fallback={
-          <BoxCar carPosRef={carPosRef} frameIdxRef={frameIdxRef} frames={data.frames} />
-        }>
-          <CarGLB carPosRef={carPosRef} frameIdxRef={frameIdxRef} frames={data.frames} />
-        </Suspense>
-      </ErrorBoundary>
+      <BoxCar carPosRef={carPosRef} headingRef={headingRef} />
 
-      {/* Planned path */}
-      <Paths frames={data.frames} frameIdxRef={frameIdxRef} />
+      {/* Detected objects */}
+      <DetectedObjects3D frames={data.frames} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} />
 
-      {/* Detected objects — wireframe bounding boxes */}
-      <DetectedObjects3D frames={data.frames} frameIdxRef={frameIdxRef} />
-
-      {/* Camera (follows car in world space) */}
-      <CameraRig frames={data.frames} frameIdxRef={frameIdxRef} />
+      {/* Camera */}
+      <CameraRig carPosRef={carPosRef} />
     </>
   );
 }
 
-// ─── Exported panel (props: data + frameIdxRef) ────────────────────────────────
-export default function LidarScene({ data, frameIdxRef }: {
+export default function LidarScene({ data, frameIdxRef, mode, liveFrame }: {
   data: DemoData;
   frameIdxRef: React.RefObject<number>;
+  mode: 'simulated' | 'live';
+  liveFrame: FrameData | null;
 }) {
   return (
     <Canvas
@@ -441,10 +455,7 @@ export default function LidarScene({ data, frameIdxRef }: {
       gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.1 }}
       className="w-full h-full bg-(--color-1)"
     >
-      <Scene data={data} frameIdxRef={frameIdxRef} />
+      <Scene data={data} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} />
     </Canvas>
   );
 }
-
-// Preload the GLB
-useGLTF.preload('/car.glb');

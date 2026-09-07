@@ -258,7 +258,9 @@ class PointNet2Wrapper(BaseSegmentationModel):
                 # Center XY
                 padded_xyz[:, :2] -= np.mean(padded_xyz[:, :2], axis=0, keepdims=True)
                 
-                input_tensor = torch.from_numpy(padded_xyz).float().unsqueeze(0).to(self.device)
+                # Only keep XYZ (drop reflectance if present)
+                xyz_tensor = padded_xyz[:, :3]
+                input_tensor = torch.from_numpy(xyz_tensor).float().unsqueeze(0).to(self.device)
                 
                 log_probs = self.model(input_tensor)
                 probs = torch.exp(log_probs)

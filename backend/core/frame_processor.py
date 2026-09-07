@@ -13,6 +13,11 @@ from __future__ import annotations
 
 import logging
 import time
+
+import math
+from pathlib import Path
+from sklearn.cluster import DBSCAN
+
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
@@ -34,6 +39,23 @@ logger = logging.getLogger(__name__)
 # Result containers
 # ─────────────────────────────────────────────────────────────────────────
 
+def parse_pose(label_root: str, sequence: str, frame_id: int) -> tuple[float, float, float]:
+    pose_path = Path(label_root).parent / "sequences" / sequence / "poses.txt"
+    if not pose_path.exists():
+        return 0.0, 0.0, 0.0
+    try:
+        with open(pose_path, "r") as f:
+            for i, line in enumerate(f):
+                if i == frame_id:
+                    vals = [float(v) for v in line.strip().split()]
+                    tx, ty, tz = vals[3], vals[7], vals[11]
+                    r11, r21 = vals[0], vals[4]
+                    heading = math.atan2(r21, r11)
+                    return float(tx), float(tz), float(heading)
+    except Exception:
+        pass
+    return 0.0, 0.0, 0.0
+
 @dataclass
 class FrameResult:
     """Complete processed result for a single LiDAR frame."""
@@ -41,6 +63,9 @@ class FrameResult:
     # Metadata
     frame_id: int
     sequence: str
+    ego_x: float
+    ego_y: float
+    ego_heading: float
     model_name: str
     timestamp: float
 
@@ -54,7 +79,7 @@ class FrameResult:
     # Adaptive grid
     cells: List[AdaptiveCell]
     num_cells: int
-
+    
     # Elevation data
     elevation_data: Dict[str, np.ndarray]
 
@@ -72,6 +97,7 @@ class FrameResult:
     # Derived
     fps: float
     compression_ratio: float    # points / cells
+    objects: list = field(default_factory=list)
 
 
 @dataclass
@@ -207,6 +233,48 @@ class FrameProcessor:
         fps = 1000.0 / total_ms if total_ms > 0 else 0.0
         compression = N / len(cells) if cells else 0.0
 
+        fps = 1000.0 / total_ms if total_ms > 0 else 0.0
+        compression = N / len(cells) if cells else 0.0
+
+        # Extract pose
+        ego_x, ego_y, ego_heading = parse_pose(self.config.label_root, sequence, frame_id)
+
+        # Detect objects via DBSCAN
+        from backend.utils.class_mapping import DYNAMIC_OBJECT_CLASSES
+        objects = []
+        dyn_pts = []
+        dyn_classes = []
+        for c in cells:
+            if c.semantic_id in DYNAMIC_OBJECT_CLASSES:
+                dyn_pts.append([c.x, c.y, c.ground_elevation + c.object_height/2])
+                dyn_classes.append(c.semantic_id)
+        
+        if dyn_pts:
+            import numpy as np
+            X = np.array(dyn_pts)
+            clustering = DBSCAN(eps=1.5, min_samples=3).fit(X)
+            labels = clustering.labels_
+            n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+            
+            for k in range(n_clusters):
+                mask = labels == k
+                cluster_pts = X[mask]
+                cluster_cls = dyn_classes[mask.argmax()] # simplest: take first
+                
+                cx, cy, cz = cluster_pts.mean(axis=0)
+                l = cluster_pts[:,0].max() - cluster_pts[:,0].min() + 0.5
+                w = cluster_pts[:,1].max() - cluster_pts[:,1].min() + 0.5
+                h = cluster_pts[:,2].max() - cluster_pts[:,2].min() + 0.5
+                
+                objects.append({
+                    "id": k,
+                    "type": cluster_cls,
+                    "cx": cx, "cy": cy, "cz": cz,
+                    "l": l, "w": w, "h": h,
+                    "heading": 0.0,
+                    "conf": 1.0
+                })
+
         self._frames_processed += 1
 
         return FrameResult(
@@ -214,6 +282,8 @@ class FrameProcessor:
             sequence=sequence,
             model_name=self._model_name,
             timestamp=time.time(),
+            ego_x=ego_x, ego_y=ego_y, ego_heading=ego_heading,
+            objects=objects,
             points=points,
             num_points=N,
             prediction=prediction,
@@ -265,6 +335,9 @@ class FrameProcessor:
         frame_data = FrameData(
             frame_id=result.frame_id,
             timestamp=result.timestamp,
+            ego_x=result.ego_x,
+            ego_y=result.ego_y,
+            ego_heading=result.ego_heading,
             cell_x=cell_x,
             cell_y=cell_y,
             cell_resolution=cell_res,
@@ -274,6 +347,19 @@ class FrameProcessor:
             cell_ground_elev=cell_gnd,
             cell_point_count=cell_cnt,
         )
+        
+        if result.objects:
+            frame_data.obj_id = np.array([o['id'] for o in result.objects], dtype=np.uint32)
+            frame_data.obj_type = np.array([o['type'] for o in result.objects], dtype=np.uint16)
+            frame_data.obj_cx = np.array([o['cx'] for o in result.objects], dtype=np.float32)
+            frame_data.obj_cy = np.array([o['cy'] for o in result.objects], dtype=np.float32)
+            frame_data.obj_cz = np.array([o['cz'] for o in result.objects], dtype=np.float32)
+            frame_data.obj_l = np.array([o['l'] for o in result.objects], dtype=np.float32)
+            frame_data.obj_w = np.array([o['w'] for o in result.objects], dtype=np.float32)
+            frame_data.obj_h = np.array([o['h'] for o in result.objects], dtype=np.float32)
+            frame_data.obj_heading = np.array([o['heading'] for o in result.objects], dtype=np.float32)
+            frame_data.obj_conf = np.array([o['conf'] for o in result.objects], dtype=np.float32)
+
 
         # ── Raw points ───────────────────────────────────────────────
         if include_raw_points:
