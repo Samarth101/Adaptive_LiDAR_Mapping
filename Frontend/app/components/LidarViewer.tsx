@@ -11,7 +11,11 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import InteractiveDotPattern from './InteractiveDotPattern';
 import { Play, Pause, Moon, Sun, GitBranch, Settings } from 'lucide-react';
 import Image from 'next/image';
+<<<<<<< Updated upstream
 import { deserializeBinary, FrameData } from '../lib/binaryProtocol';
+=======
+import Footer from './Footer';
+>>>>>>> Stashed changes
 
 // Dynamic imports (WebGL / canvas — client only)
 const LidarScene = dynamic(() => import('./LidarScene'), { ssr: false });
@@ -340,8 +344,13 @@ export default function LidarViewer({ onFrameChange }: Props) {
           </div>
 
           <div className="flex gap-3 justify-center">
+<<<<<<< Updated upstream
             <div className="relative grow h-140 bg-background rounded-md overflow-hidden">
               <LidarScene data={data} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} />
+=======
+            <div className="relative grow h-140 bg-background rounded-md overflow-hidden select-none">
+              <LidarScene data={data} frameIdxRef={frameIdxRef} />
+>>>>>>> Stashed changes
             </div>
             <div className="w-74 h-fit bg-card rounded-md">
               <MetricsHUD
@@ -395,6 +404,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
         </div>
 
       </div>
+      <Footer />
     </div>
   );
 }
