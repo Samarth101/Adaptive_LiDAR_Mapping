@@ -16,9 +16,15 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import sys
 import time
 from pathlib import Path
 from typing import Dict, List, Optional
+
+# Ensure repository root is in sys.path so 'import backend.xyz' always resolves
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 import numpy as np
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query

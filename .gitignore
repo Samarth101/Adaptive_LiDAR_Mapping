@@ -36,38 +36,38 @@ wheels/
 # Dataset & Heavy LiDAR Data
 # ==============================================================================
 # SemanticKITTI dataset (~80GB)
-data/*
-!data/.gitkeep
+**/data/*
+!**/data/.gitkeep
 *.bin
 *.label
 
 # ==============================================================================
 # Precomputed Predictions & Intermediate Outputs
 # ==============================================================================
-predictions/*
-!predictions/.gitkeep
+**/predictions/*
+!**/predictions/.gitkeep
 *.npz
 
 # ==============================================================================
 # Checkpoints & Model Weights (GitHub blocks files > 100 MB)
 # ==============================================================================
-checkpoints/**/*.pth
-checkpoints/**/*.pt
-checkpoints/**/*.ckpt
-checkpoints/**/*.bin
-checkpoints/**/*.tar*
-checkpoints/**/*.zip
-!checkpoints/**/.gitkeep
+**/checkpoints/**/*.pth
+**/checkpoints/**/*.pt
+**/checkpoints/**/*.ckpt
+**/checkpoints/**/*.bin
+**/checkpoints/**/*.tar*
+**/checkpoints/**/*.zip
+!**/checkpoints/**/.gitkeep
 
 # (Optional) Allow the lightweight baseline PointNet++ checkpoint (11.8 MB)
 # Comment out the line below if you prefer to host weights externally:
-!checkpoints/pointnet2/pointnet2_semantickitti_ep29.pth
+!**/checkpoints/pointnet2/pointnet2_semantickitti_ep29.pth
 
 # ==============================================================================
 # Cloned Third-Party Repositories
 # ==============================================================================
-# Cloned via scripts/setup_cylinder3d.sh
-third_party/
+# Cloned via backend/scripts/setup_cylinder3d.sh
+**/third_party/
 
 # ==============================================================================
 # Jupyter Notebooks & Caches

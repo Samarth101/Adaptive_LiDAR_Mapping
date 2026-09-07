@@ -13,9 +13,20 @@ from pathlib import Path
 from typing import List, Tuple
 
 
-def _project_root() -> Path:
-    """Return the project root (parent of backend/)."""
-    return Path(__file__).resolve().parent.parent
+def _backend_root() -> Path:
+    """Return the backend directory."""
+    return Path(__file__).resolve().parent
+
+
+def _find_dir(dir_name: str) -> Path:
+    """Locate a directory: checks inside backend/ first, then repo root fallback."""
+    backend_path = _backend_root() / dir_name
+    if backend_path.exists():
+        return backend_path
+    parent_path = _backend_root().parent / dir_name
+    if parent_path.exists():
+        return parent_path
+    return backend_path
 
 
 @dataclass
@@ -49,14 +60,14 @@ class BackendConfig:
 
     # ── Dataset paths ────────────────────────────────────────────────────
     velodyne_root: str = str(
-        _project_root() / "data" / "dataset" / "sequences"
+        _find_dir("data") / "dataset" / "sequences"
     )
     label_root: str = str(
-        _project_root() / "data" / "data_odometry_labels"
+        _find_dir("data") / "data_odometry_labels"
         / "dataset" / "sequences"
     )
     yaml_config: str = str(
-        _project_root() / "config" / "semantic-kitti.yaml"
+        _find_dir("config") / "semantic-kitti.yaml"
     )
 
     # ── Resolution configuration ─────────────────────────────────────────
@@ -69,7 +80,8 @@ class BackendConfig:
 
     # ── Model settings ───────────────────────────────────────────────────
     default_model: str = "cylinder3d"
-    checkpoint_dir: str = str(_project_root() / "checkpoints")
+    checkpoint_dir: str = str(_find_dir("checkpoints"))
+    predictions_dir: str = str(_find_dir("predictions"))
     device: str = "auto"       # "auto" | "cuda" | "mps" | "cpu"
     num_classes: int = 20      # SemanticKITTI 20-class contract (0=unlabeled)
 

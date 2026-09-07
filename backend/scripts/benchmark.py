@@ -22,8 +22,9 @@ from pathlib import Path
 
 import numpy as np
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR.parent.parent))
+sys.path.insert(0, str(SCRIPT_DIR.parent))
 
 from backend.config import BackendConfig, DEFAULT_RESOLUTION_BANDS
 from backend.core.data_loader import SequenceIterator

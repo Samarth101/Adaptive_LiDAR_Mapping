@@ -37,7 +37,7 @@ def get_available_models():
     from pathlib import Path
     from backend.config import BackendConfig
     cfg = BackendConfig()
-    pred_root = Path(cfg.checkpoint_dir).parent / "predictions"
+    pred_root = Path(cfg.predictions_dir)
     if pred_root.exists():
         for child in pred_root.iterdir():
             if child.is_dir():
@@ -64,7 +64,7 @@ def create_model(name: str, **kwargs) -> BaseSegmentationModel:
         from pathlib import Path
         from backend.config import BackendConfig
         cfg = BackendConfig()
-        pred_dir = Path(cfg.checkpoint_dir).parent / "predictions" / base_name
+        pred_dir = Path(cfg.predictions_dir) / base_name
         if pred_dir.exists():
             return PrecomputedModelWrapper(
                 predictions_dir=str(pred_dir),

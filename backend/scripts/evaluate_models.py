@@ -22,9 +22,10 @@ from pathlib import Path
 
 import numpy as np
 
-# Add project root to path
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+# Add project root and backend directory to path
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR.parent.parent))
+sys.path.insert(0, str(SCRIPT_DIR.parent))
 
 from backend.config import BackendConfig, DEFAULT_DISTANCE_BANDS
 from backend.core.data_loader import SequenceIterator
