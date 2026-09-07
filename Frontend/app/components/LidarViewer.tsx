@@ -346,10 +346,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
             <div className="w-74 h-fit bg-card rounded-md">
               <MetricsHUD
                 metrics={mode === 'simulated' ? frame.metrics : {
-                  latency_ms: 0,
                   objects_detected: currentObjects,
-                  collision_risk: 0,
-                  perception_latency_ms: 0,
                 }}
                 fps={fps}
                 memorySavingsPct={memorySavings}

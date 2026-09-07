@@ -4,7 +4,7 @@ import { Separator } from '@/components/ui/separator';
 import type { FrameMetrics } from '../types/dataset';
 
 interface Props {
-  metrics: FrameMetrics;
+  metrics: { objects_detected: number };
   fps: number;
   memorySavingsPct: number;
   frameId: number;
