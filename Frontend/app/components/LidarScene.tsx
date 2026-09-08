@@ -387,8 +387,10 @@ function Scene({ data, frameIdxRef, mode, liveFrame }: {
         carPosRef.current.set(vp[0], vp[2], -vp[1]);
         headingRef.current = data.frames[fi].vehicle.heading;
     } else if (liveFrame) {
-        const vp = [0, 0, 0];
-        const [tx, ty, tz] = d2t(vp as [number, number, number]);
+        // LiDAR sensor is ~1.73m above ground. Ground points are at Z ≈ -1.73.
+        // d2t maps Z to Y in Three.js. Car should sit on the ground plane.
+        const sensorHeight = -1.73; // Z of ground in sensor frame
+        const [tx, ty, tz] = d2t([0, 0, sensorHeight] as [number, number, number]);
         carPosRef.current.set(tx, ty, tz);
         headingRef.current = liveFrame.ego_heading;
     }

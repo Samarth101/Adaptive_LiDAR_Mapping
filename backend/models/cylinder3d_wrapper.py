@@ -222,6 +222,10 @@ class Cylinder3DWrapper(BaseSegmentationModel):
 
         device = self._device_str
         
+        # Enable cuDNN auto-tuner for consistent input sizes
+        if device == "cuda":
+            torch.backends.cudnn.benchmark = True
+        
         # Convert to tensors directly on device
         xyz_tensor = torch.from_numpy(xyz).float().to(device)
         intensity_tensor = torch.from_numpy(intensity).float().to(device) if intensity is not None else None
@@ -230,16 +234,19 @@ class Cylinder3DWrapper(BaseSegmentationModel):
         pt_fea_tensor, vox_ind_tensor = self._prepare_input(xyz_tensor, intensity_tensor)
 
         with torch.no_grad():
-            # Forward pass through the combined model
-            output = self._model(
-                [pt_fea_tensor],      # list of per-batch point features
-                [vox_ind_tensor],     # list of per-batch voxel indices
-                batch_size=1,
-            )
+            # Use mixed precision (FP16) for faster inference on CUDA
+            use_amp = (device == "cuda")
+            with torch.amp.autocast('cuda', enabled=use_amp):
+                # Forward pass through the combined model
+                output = self._model(
+                    [pt_fea_tensor],      # list of per-batch point features
+                    [vox_ind_tensor],     # list of per-batch voxel indices
+                    batch_size=1,
+                )
 
             # output shape: [batch, nclasses, grid_rho, grid_theta, grid_z]
             # Map voxel predictions back to points
-            probs = torch.softmax(output[0], dim=0)  # [nclasses, R, T, Z]
+            probs = torch.softmax(output[0].float(), dim=0)  # [nclasses, R, T, Z]
             pred_grid = probs.argmax(dim=0)           # [R, T, Z]
             conf_grid = probs.max(dim=0).values       # [R, T, Z]
 
@@ -250,6 +257,14 @@ class Cylinder3DWrapper(BaseSegmentationModel):
 
             semantic_ids = pred_grid[r_idx, t_idx, z_idx].cpu().numpy().astype(np.int64)
             confidences = conf_grid[r_idx, t_idx, z_idx].cpu().numpy().astype(np.float32)
+
+        # Safety: If any predictions are > 19, the checkpoint outputs raw
+        # SemanticKITTI IDs (10, 40, 70...) instead of training IDs (0-19).
+        # Apply learning map remapping to fix this.
+        if np.any(semantic_ids > 19):
+            from backend.utils.class_mapping import remap_labels
+            logger.info("Cylinder3D output contains raw SemanticKITTI IDs — remapping to training IDs.")
+            semantic_ids = remap_labels(semantic_ids)
 
         return semantic_ids, confidences
 

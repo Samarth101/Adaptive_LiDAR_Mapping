@@ -22,20 +22,19 @@ export default function MemorySavingsHUD({ gridResult, mode, liveFrame }: Props)
     totalCount = nearCount + midCount + farCount;
   } else if (mode === 'live' && liveFrame && liveFrame.cell_x) {
     totalCount = liveFrame.cell_x.length;
-    // True memory savings vs full 0.05m uniform 3D grid (assuming e.g. 100m radius, 10m height)
-    // A full uniform grid has ~ millions of cells. We approximate savings as usually >99%.
-    // To match actual memory footprint vs 3D grid, calculate total uniform cells:
-    const gridVolume = (200 / 0.05) * (200 / 0.05) * (10 / 0.05); // ~ 3.2 Billion
-    memorySavingsPct = Math.max(0, 100 - (totalCount / gridVolume) * 100);
-    if (memorySavingsPct > 99.9) memorySavingsPct = 99.9; // Cap for realism display
 
-    // Count cells per band matching backend config (0-10m, 10-30m, 30-100m)
+    // Compare adaptive 2.5D cells vs a uniform 2D grid at 5cm (0.05m)
+    // covering a 200m × 200m area: (200/0.05)^2 = 16,000,000 cells
+    const uniformCellCount = (200 / 0.05) * (200 / 0.05); // 16,000,000
+    memorySavingsPct = Math.max(0, (1 - totalCount / uniformCellCount) * 100);
+
+    // Count cells per band matching backend config bands
     for (let i = 0; i < totalCount; i++) {
       const x = liveFrame.cell_x[i];
       const y = liveFrame.cell_y[i];
       const dist = Math.sqrt(x * x + y * y);
       if (dist < 10.0) nearCount++;
-      else if (dist < 30.0) midCount++;
+      else if (dist < 60.0) midCount++;
       else farCount++;
     }
   }
@@ -43,10 +42,10 @@ export default function MemorySavingsHUD({ gridResult, mode, liveFrame }: Props)
   return (
     <div className="h-fit w-full text-sm p-4 justify-center text-foreground font-bold">
       <div className="text-emerald-500 mb-1.5 text-base">
-        {memorySavingsPct.toFixed(2)}% memory vs uniform 3D grid (0.05m)
+        {memorySavingsPct.toFixed(2)}% memory savings vs uniform 2D grid (0.05m)
       </div>
       <div className="text-muted-foreground mb-8 text-xs font-normal">
-        3D to adaptive 2.5D grid (majority-vote semantic)
+        3D → adaptive 2.5D foveated grid (majority-vote semantic)
       </div>
       <div className="space-y-3 text-muted-foreground">
         <div className="flex justify-between items-center text-foreground">
