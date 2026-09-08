@@ -408,7 +408,15 @@ async def ws_stream(websocket: WebSocket):
                 # Send binary frame
                 await websocket.send_bytes(binary)
                 timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-                print(f"[{timestamp}] Streamed Frame: idx={current_frame_idx}/{len(frame_list)} | seq={current_seq} | model={current_model} | points={result.num_points} | cells={result.num_cells} | fps={result.fps:.1f}")
+                print(
+                    f"[{timestamp}] Streamed Frame: idx={current_frame_idx}/{len(frame_list)} | "
+                    f"seq={current_seq} | model={current_model} | fps={result.fps:.1f}\n"
+                    f"   VERBOSE TIMING (ms): Load={result.load_ms:.1f}, "
+                    f"Inference={result.inference_ms:.1f}, Grid={result.grid_ms:.1f}, "
+                    f"Elevation={result.elevation_ms:.1f}, Total={result.total_ms:.1f}\n"
+                    f"   VERBOSE STATS: Points={result.num_points}, Cells={result.num_cells}, "
+                    f"Compression={result.compression_ratio:.1f}x"
+                )
 
                 # Advance frame
                 current_frame_idx = (current_frame_idx + 1) % len(frame_list)
@@ -503,24 +511,31 @@ async def startup():
     logger.info(f"Device:        {cfg.resolve_device()}")
     logger.info(f"Available models: {get_available_models()}")
 
-    # Try to load default model
-    try:
-        m = _ensure_model(cfg.default_model)
-        processor.set_model(m)
-        logger.info(f"Default model '{cfg.default_model}' loaded.")
-    except Exception as exc:
-        logger.warning(
-            f"Could not load default model '{cfg.default_model}': {exc}. "
-            f"Try loading a model via POST /api/model/select."
-        )
-        # Fallback to pointnet2
-        if cfg.default_model != "pointnet2":
-            try:
-                m = _ensure_model("pointnet2")
+    # Pre-load all available models to avoid loading delays during stream
+    available_models = get_available_models()
+    logger.info(f"Pre-loading models: {available_models}")
+    
+    for model_name in available_models:
+        try:
+            m = _ensure_model(model_name)
+            logger.info(f"Model '{model_name}' pre-loaded successfully.")
+            
+            # Set the default model as active if it's the current one
+            if model_name == cfg.default_model:
                 processor.set_model(m)
-                logger.info("Fallback: PointNet++ loaded.")
-            except Exception:
-                logger.warning("No model available at startup.")
+                logger.info(f"Default model '{cfg.default_model}' set as active.")
+                
+        except Exception as exc:
+            logger.warning(f"Could not load model '{model_name}': {exc}")
+
+    if not processor.get_model_name():
+        logger.warning("No model set as active at startup. Falling back to pointnet2 if available.")
+        try:
+            m = _ensure_model("pointnet2")
+            processor.set_model(m)
+            logger.info("Fallback: PointNet++ loaded.")
+        except Exception:
+            logger.warning("No model available at startup.")
 
 
 # ── Run with python -m backend.server ────────────────────────────────────

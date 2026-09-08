@@ -239,38 +239,42 @@ class FrameProcessor:
         # Extract pose
         ego_x, ego_y, ego_heading = parse_pose(self.config.label_root, sequence, frame_id)
 
-        # Detect objects via DBSCAN
+        # Detect objects via DBSCAN on raw points for accurate bounding boxes
         from backend.utils.class_mapping import DYNAMIC_OBJECT_CLASSES
         objects = []
-        dyn_pts = []
-        dyn_classes = []
-        for c in cells:
-            if c.semantic_id in DYNAMIC_OBJECT_CLASSES:
-                dyn_pts.append([c.x, c.y, c.ground_elevation + c.object_height/2])
-                dyn_classes.append(c.semantic_id)
         
-        if dyn_pts:
-            import numpy as np
-            X = np.array(dyn_pts)
-            clustering = DBSCAN(eps=1.5, min_samples=3).fit(X)
+        # Filter raw points that belong to dynamic classes
+        mask = np.isin(prediction.semantic_ids, list(DYNAMIC_OBJECT_CLASSES))
+        dyn_pts = points[mask, :3]
+        dyn_classes = prediction.semantic_ids[mask]
+        
+        if len(dyn_pts) > 0:
+            clustering = DBSCAN(eps=0.8, min_samples=5).fit(dyn_pts)
             labels = clustering.labels_
             n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
             
             for k in range(n_clusters):
-                mask = labels == k
-                cluster_pts = X[mask]
-                cluster_cls = dyn_classes[mask.argmax()] # simplest: take first
+                cluster_mask = labels == k
+                cluster_pts = dyn_pts[cluster_mask]
+                
+                # Get the most frequent class in the cluster
+                from collections import Counter
+                cluster_cls = Counter(dyn_classes[cluster_mask]).most_common(1)[0][0]
+                
+                # Compute dimensions with percentiles to ignore noise
+                p_low = np.percentile(cluster_pts, 5, axis=0)
+                p_high = np.percentile(cluster_pts, 95, axis=0)
                 
                 cx, cy, cz = cluster_pts.mean(axis=0)
-                l = cluster_pts[:,0].max() - cluster_pts[:,0].min() + 0.5
-                w = cluster_pts[:,1].max() - cluster_pts[:,1].min() + 0.5
-                h = cluster_pts[:,2].max() - cluster_pts[:,2].min() + 0.5
+                l = max(p_high[0] - p_low[0], 0.3)  # min size 0.3m
+                w = max(p_high[1] - p_low[1], 0.3)
+                h = max(p_high[2] - p_low[2], 0.3)
                 
                 objects.append({
                     "id": k,
-                    "type": cluster_cls,
-                    "cx": cx, "cy": cy, "cz": cz,
-                    "l": l, "w": w, "h": h,
+                    "type": int(cluster_cls),
+                    "cx": float(cx), "cy": float(cy), "cz": float(cz),
+                    "l": float(l), "w": float(w), "h": float(h),
                     "heading": 0.0,
                     "conf": 1.0
                 })

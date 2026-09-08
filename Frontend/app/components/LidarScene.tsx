@@ -207,49 +207,30 @@ function PointCloud({ points, mode, liveFrame, carPosRef, frameIdxRef }: {
   );
 }
 
-// ─── BoxCar ───────────────────────────────────────────────────
-const M_W = new THREE.MeshStandardMaterial({ color: '#f0f0ee', roughness: 0.22, metalness: 0.18 });
-const M_G = new THREE.MeshStandardMaterial({ color: '#1a2535', transparent: true, opacity: 0.75 });
-const M_T = new THREE.MeshStandardMaterial({ color: '#111', roughness: 0.9 });
-const M_H = new THREE.MeshStandardMaterial({ color: '#fff', emissive: '#7799ff', emissiveIntensity: 4 });
-const M_R = new THREE.MeshStandardMaterial({ color: '#ff2200', emissive: '#ff2200', emissiveIntensity: 3 });
-
-function BoxCar({ carPosRef, headingRef }: {
+// ─── GLTFCar ───────────────────────────────────────────────────
+function GLTFCar({ carPosRef, headingRef }: {
   carPosRef: React.RefObject<THREE.Vector3>;
   headingRef: React.RefObject<number>;
 }) {
   const groupRef = useRef<THREE.Group>(null);
+  const { scene } = useGLTF('/car.glb');
 
   useFrame(() => {
     if (!groupRef.current || !carPosRef.current) return;
     const { x, y, z } = carPosRef.current;
     groupRef.current.position.set(x, y, z);
-    groupRef.current.rotation.y = -(headingRef.current ?? 0);
+    groupRef.current.rotation.y = -(headingRef.current ?? 0) + Math.PI / 2;
   });
-
-  const wheel = (pos: [number, number, number]) => (
-    <group key={pos.join()} position={pos}>
-      <mesh rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[0.34, 0.34, 0.24, 18]} /><primitive object={M_T} attach="material" /></mesh>
-    </group>
-  );
 
   return (
     <group ref={groupRef}>
-      <mesh position={[0, 0.72, 0]}><boxGeometry args={[4.5, 1.44, 1.96]} /><primitive object={M_W} attach="material" /></mesh>
-      <mesh position={[-0.22, 1.68, 0]}><boxGeometry args={[2.1, 0.88, 1.82]} /><primitive object={M_W} attach="material" /></mesh>
-      <mesh position={[0.84, 1.60, 0]} rotation={[0, 0, -0.52]}><boxGeometry args={[0.06, 0.90, 1.78]} /><primitive object={M_G} attach="material" /></mesh>
-      <mesh position={[2.26, 0.70, 0.62]}><boxGeometry args={[0.07, 0.24, 0.40]} /><primitive object={M_H} attach="material" /></mesh>
-      <mesh position={[2.26, 0.70, -0.62]}><boxGeometry args={[0.07, 0.24, 0.40]} /><primitive object={M_H} attach="material" /></mesh>
-      <mesh position={[-2.26, 0.70, 0.60]}><boxGeometry args={[0.07, 0.20, 0.38]} /><primitive object={M_R} attach="material" /></mesh>
-      <mesh position={[-2.26, 0.70, -0.60]}><boxGeometry args={[0.07, 0.20, 0.38]} /><primitive object={M_R} attach="material" /></mesh>
-      {wheel([1.48, 0.34, 0.97])}
-      {wheel([1.48, 0.34, -0.97])}
-      {wheel([-1.48, 0.34, 0.97])}
-      {wheel([-1.48, 0.34, -0.97])}
+      <primitive object={scene} />
       <pointLight position={[3.0, 0.8, 0]} color="#aabbff" intensity={4} distance={12} decay={2} />
     </group>
   );
 }
+
+useGLTF.preload('/car.glb');
 
 // ─── Detected Objects 3D ───────────────
 function DetectedObjects3D({ frames, frameIdxRef, mode, liveFrame }: { 
@@ -431,7 +412,7 @@ function Scene({ data, frameIdxRef, mode, liveFrame }: {
         liveFrame={liveFrame}
       />
 
-      <BoxCar carPosRef={carPosRef} headingRef={headingRef} />
+      <GLTFCar carPosRef={carPosRef} headingRef={headingRef} />
 
       {/* Detected objects */}
       <DetectedObjects3D frames={data.frames} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} />
@@ -455,7 +436,9 @@ export default function LidarScene({ data, frameIdxRef, mode, liveFrame }: {
       gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.1 }}
       className="w-full h-full bg-(--color-1)"
     >
-      <Scene data={data} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} />
+      <Suspense fallback={null}>
+        <Scene data={data} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} />
+      </Suspense>
     </Canvas>
   );
 }

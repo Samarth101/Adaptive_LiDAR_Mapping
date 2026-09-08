@@ -93,27 +93,54 @@ export default function LidarViewer({ onFrameChange }: Props) {
       .catch((e: Error) => { setError(e.message); setLoading(false); });
   }, []);
 
-  // Load models from backend
-  useEffect(() => {
-    fetch('http://localhost:8000/api/models')
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          setAvailableModels(data.map(m => m.name));
-        }
-      }).catch(e => console.error("Could not fetch models", e));
+  const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
+  const [backendErrorMsg, setBackendErrorMsg] = useState<string | null>(null);
 
-    fetch('http://localhost:8000/api/sequences')
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          setAvailableSequences(data);
-          if (data.length > 0 && !data.find(s => s.id === sequence)) {
-            setSequence(data[0].id);
+  // Load models & sequences from backend with graceful fallback
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkBackend = async () => {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+        const resModels = await fetch('http://localhost:8000/api/models', { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (!resModels.ok) throw new Error(`HTTP ${resModels.status}`);
+        const modelsData = await resModels.json();
+        
+        if (isMounted) {
+          if (Array.isArray(modelsData) && modelsData.length > 0) {
+            setAvailableModels(modelsData.map((m: any) => m.name));
+          }
+          setBackendOnline(true);
+          setBackendErrorMsg(null);
+        }
+
+        const resSeq = await fetch('http://localhost:8000/api/sequences');
+        if (resSeq.ok) {
+          const seqData = await resSeq.json();
+          if (isMounted && Array.isArray(seqData)) {
+            setAvailableSequences(seqData);
+            if (seqData.length > 0 && !seqData.find((s: any) => s.id === sequence)) {
+              setSequence(seqData[0].id);
+            }
           }
         }
-      }).catch(e => console.error("Could not fetch sequences", e));
-  }, []);
+      } catch (err: any) {
+        if (isMounted) {
+          console.warn("Backend API unavailable, continuing in simulated mode:", err?.message || err);
+          setBackendOnline(false);
+          setBackendErrorMsg("ML Backend Offline (http://localhost:8000)");
+        }
+      }
+    };
+
+    checkBackend();
+    return () => { isMounted = false; };
+  }, [sequence]);
 
   // WebSocket for Live Data
   useEffect(() => {
@@ -302,6 +329,34 @@ export default function LidarViewer({ onFrameChange }: Props) {
       {/* Main Content */}
       <div className="mt-20 p-6 space-y-8 max-w-340 mx-auto">
 
+        {/* Backend Status Banner */}
+        {backendOnline === false && (
+          <div className="w-full max-w-6xl mx-auto -mb-4">
+            {mode === 'live' ? (
+              <div className="p-4 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-500 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 backdrop-blur-sm">
+                <div className="text-sm">
+                  <span className="font-semibold">⚠️ ML Backend Offline: </span>
+                  Cannot connect to <code className="bg-background/60 px-1.5 py-0.5 rounded font-mono text-xs">http://localhost:8000</code>.
+                  Please start the backend with <code className="bg-background/60 px-1.5 py-0.5 rounded font-mono text-xs">python .\backend\server.py</code> to stream live data.
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMode('simulated')}
+                  className="rounded-full border-amber-500/40 hover:bg-amber-500/20 text-xs shrink-0"
+                >
+                  Switch to Simulated
+                </Button>
+              </div>
+            ) : (
+              <div className="w-fit mx-auto px-4 py-1.5 rounded-full text-xs bg-muted/70 border border-border text-muted-foreground flex items-center gap-2 backdrop-blur-sm">
+                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                <span>Backend API offline (http://localhost:8000) — Simulated mode running standalone</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Metrics Section */}
         <div className="w-full max-w-6xl mx-auto relative">
           <div className="w-[calc(100%-64px)] h-10 bg-muted-foreground/70 backdrop-blur-lg rounded-full absolute -top-3 left-8 z-1" />
@@ -393,6 +448,23 @@ export default function LidarViewer({ onFrameChange }: Props) {
             <ElevationMap3D data={data} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} />
           </div>
         </div>
+
+        {/* Panel 4: Cross-section & Accuracy (Simulated Mode) */}
+        {mode === 'simulated' && (
+          <div className="bg-card/30 backdrop-blur-xs border border-border rounded-xl shadow-sm h-fit p-3 relative">
+            <div className="w-full flex justify-between gap-3 mb-3">
+              <div className="w-fit h-fit bg-card rounded-sm px-3 py-2 text-sm">
+                Cross-Section & Accuracy
+              </div>
+              <div className="w-fit h-fit rounded-sm px-3 py-2 text-sm text-muted-foreground">
+                2D · Elevation Slice / Classification
+              </div>
+            </div>
+            <div className="relative w-full h-110 overflow-hidden">
+              <ElevationSlice data={data} frameIdx={frameIdx} />
+            </div>
+          </div>
+        )}
 
       </div>
     </div>
