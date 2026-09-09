@@ -19,11 +19,20 @@ function d2t(p: readonly [number, number, number]): [number, number, number] {
 // ─── Point cloud shaders ──────────────────────────────────────────────────────
 const VERT = /* glsl */`
   attribute vec4 aColor;
-  varying   vec4 vColor;
+  attribute float aSize;
+  varying vec4 vColor;
   void main() {
     vColor = aColor;
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = clamp(3.8 - (-mv.z) * 0.016, 1.0, 4.2);
+    
+    // Scale physical cell size (aSize in meters) to screen pixels based on distance
+    // Example: A 0.5m cell should look much bigger than a 0.05m cell at the same distance.
+    // If aSize is 0.0 (like for raw points), we use a default small point size.
+    float distance = -mv.z;
+    float pixelSize = aSize > 0.0 ? (aSize * 250.0) / (distance + 0.1) : clamp(3.8 - distance * 0.016, 1.0, 4.2);
+    
+    // Cap max point size so massive blocks don't completely blind the camera
+    gl_PointSize = clamp(pixelSize, 1.5, 50.0);
     gl_Position  = projectionMatrix * mv;
   }
 `;
@@ -50,25 +59,28 @@ const BACKEND_CLASS_NAMES: Record<number, string> = {
 };
 
 // ─── PointCloud ───────────────────────────────────────────────────────────────
-function PointCloud({ points, mode, liveFrame, carPosRef, frameIdxRef }: {
+function PointCloud({ points, mode, liveFrame, carPosRef, frameIdxRef, visualMode }: {
   points: LidarPoint[];
   mode: 'simulated' | 'live';
   liveFrame: FrameData | null;
   carPosRef: React.RefObject<THREE.Vector3>;
   frameIdxRef: React.RefObject<number>;
+  visualMode?: 'raw' | 'cells';
 }) {
   const geoRef = useRef<THREE.BufferGeometry>(null);
   const lastFi = useRef(-1);
   const lastFrameId = useRef(-1);
+  const lastVisualMode = useRef<string | null>(null);
 
   // Compute buffers
-  const { positions, baseColors, colorBuffer, count } = useMemo(() => {
+  const { positions, baseColors, colorBuffer, sizes, count } = useMemo(() => {
     if (mode === 'simulated') {
-      // SIMULATED DATA
+      // SIMULATED DATA (always raw)
       const n = points.length;
       const positions = new Float32Array(n * 3);
       const baseColors = new Float32Array(n * 4);
       const colorBuffer = new Float32Array(n * 4);
+      const sizes = new Float32Array(n).fill(0.0);
 
       for (let i = 0; i < n; i++) {
         const [tx, ty, tz] = d2t(points[i].position);
@@ -90,36 +102,49 @@ function PointCloud({ points, mode, liveFrame, carPosRef, frameIdxRef }: {
         colorBuffer[i * 4 + 2] = actualRgb[2] * 0.15;
         colorBuffer[i * 4 + 3] = isKnown ? 0.08 : 0.0;
       }
-      return { positions, baseColors, colorBuffer, count: n };
+      return { positions, baseColors, colorBuffer, sizes, count: n };
     } else {
       // LIVE BACKEND DATA
-      if (!liveFrame || !liveFrame.raw_x) {
+      if (!liveFrame) {
           return {
-              positions: new Float32Array(0),
-              baseColors: new Float32Array(0),
-              colorBuffer: new Float32Array(0),
-              count: 0
+              positions: new Float32Array(0), baseColors: new Float32Array(0),
+              colorBuffer: new Float32Array(0), sizes: new Float32Array(0), count: 0
           };
       }
-      const n = liveFrame.raw_x.length;
+      
+      const isCells = visualMode === 'cells' && liveFrame.cell_x;
+      if (!isCells && !liveFrame.raw_x) {
+          return {
+              positions: new Float32Array(0), baseColors: new Float32Array(0),
+              colorBuffer: new Float32Array(0), sizes: new Float32Array(0), count: 0
+          };
+      }
+
+      const n = isCells ? liveFrame.cell_x.length : liveFrame.raw_x!.length;
       const positions = new Float32Array(n * 3);
       const baseColors = new Float32Array(n * 4);
       const colorBuffer = new Float32Array(n * 4);
+      const sizes = new Float32Array(n);
 
-      const xs = liveFrame.raw_x;
-      const ys = liveFrame.raw_y || new Float32Array(n);
-      const zs = liveFrame.raw_z || new Float32Array(n);
-      const sems = liveFrame.raw_semantic_id!;
+      const xs = isCells ? liveFrame.cell_x : liveFrame.raw_x!;
+      const ys = isCells ? liveFrame.cell_y : (liveFrame.raw_y || new Float32Array(n));
+      const sems = isCells ? liveFrame.cell_semantic_id : liveFrame.raw_semantic_id!;
+      
+      // Z-axis depends on mode. Raw = raw_z. Cells = ground_elev.
+      const zs = isCells ? liveFrame.cell_ground_elev : (liveFrame.raw_z || new Float32Array(n));
+      const resolutions = isCells ? liveFrame.cell_resolution : null;
 
       for (let i = 0; i < n; i++) {
         // Backend coordinates are already X forward, Y left, Z up.
         const px = xs[i], py = ys[i], pz = zs[i];
-        // We use them directly so the car stays at the origin.
+        // d2t maps into Three.js coords so the car stays at the origin.
         const [tx, ty, tz] = d2t([px, py, pz]);
         
         positions[i * 3] = tx;
         positions[i * 3 + 1] = ty;
         positions[i * 3 + 2] = tz;
+
+        sizes[i] = resolutions ? resolutions[i] : 0.0;
 
         const clsName = BACKEND_CLASS_NAMES[sems[i]] || 'unlabeled';
         const rgb = LIDAR_RGB[clsName];
@@ -136,9 +161,9 @@ function PointCloud({ points, mode, liveFrame, carPosRef, frameIdxRef }: {
         colorBuffer[i * 4 + 2] = actualRgb[2] * 0.15;
         colorBuffer[i * 4 + 3] = isKnown ? 0.08 : 0.0;
       }
-      return { positions, baseColors, colorBuffer, count: n };
+      return { positions, baseColors, colorBuffer, sizes, count: n };
     }
-  }, [points, mode, liveFrame]);
+  }, [points, mode, liveFrame, visualMode]);
 
   const mat = useMemo(() => new THREE.ShaderMaterial({
     uniforms: {}, vertexShader: VERT, fragmentShader: FRAG,
@@ -156,12 +181,21 @@ function PointCloud({ points, mode, liveFrame, carPosRef, frameIdxRef }: {
         shouldUpdate = true;
         lastFrameId.current = liveFrame.frame_id;
     }
+    
+    if (visualMode !== lastVisualMode.current) {
+        shouldUpdate = true;
+        lastVisualMode.current = visualMode || 'raw';
+    }
 
     if (!shouldUpdate) return;
 
     const geo = geoRef.current;
     const attr = geo?.getAttribute('aColor') as THREE.BufferAttribute | undefined;
-    if (!attr) return;
+    const posAttr = geo?.getAttribute('position') as THREE.BufferAttribute | undefined;
+    if (!attr || !posAttr) return;
+
+    // Fast bounds check if buffers mismatch count (e.g. switching modes)
+    if (attr.count !== count || posAttr.count !== count) return;
 
     const { x: cx, y: cy, z: cz } = carPosRef.current!;
     const colors = attr.array as Float32Array;
@@ -201,6 +235,7 @@ function PointCloud({ points, mode, liveFrame, carPosRef, frameIdxRef }: {
       <bufferGeometry ref={geoRef}>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} count={count} array={positions} itemSize={3} />
         <bufferAttribute attach="attributes-aColor" args={[colorBuffer, 4]} count={count} array={colorBuffer} itemSize={4} />
+        <bufferAttribute attach="attributes-aSize" args={[sizes, 1]} count={count} array={sizes} itemSize={1} />
       </bufferGeometry>
       <primitive object={mat} attach="material" />
     </points>
@@ -370,11 +405,12 @@ function CameraRig({ carPosRef }: { carPosRef: React.RefObject<THREE.Vector3> })
 }
 
 // ─── Scene ────────────────────────────────────────────────────────────────────
-function Scene({ data, frameIdxRef, mode, liveFrame }: {
+function Scene({ data, frameIdxRef, mode, liveFrame, visualMode }: {
   data: DemoData;
   frameIdxRef: React.RefObject<number>;
   mode: 'simulated' | 'live';
   liveFrame: FrameData | null;
+  visualMode?: 'raw' | 'cells';
 }) {
   const carPosRef = useRef(new THREE.Vector3(0.9, 0, 0));
   const headingRef = useRef(0);
@@ -412,6 +448,7 @@ function Scene({ data, frameIdxRef, mode, liveFrame }: {
         frameIdxRef={frameIdxRef}
         mode={mode}
         liveFrame={liveFrame}
+        visualMode={visualMode}
       />
 
       <GLTFCar carPosRef={carPosRef} headingRef={headingRef} />
@@ -425,11 +462,12 @@ function Scene({ data, frameIdxRef, mode, liveFrame }: {
   );
 }
 
-export default function LidarScene({ data, frameIdxRef, mode, liveFrame }: {
+export default function LidarScene({ data, frameIdxRef, mode, liveFrame, visualMode }: {
   data: DemoData;
   frameIdxRef: React.RefObject<number>;
   mode: 'simulated' | 'live';
   liveFrame: FrameData | null;
+  visualMode?: 'raw' | 'cells';
 }) {
   return (
     <Canvas
@@ -439,7 +477,7 @@ export default function LidarScene({ data, frameIdxRef, mode, liveFrame }: {
       className="w-full h-full bg-(--color-1)"
     >
       <Suspense fallback={null}>
-        <Scene data={data} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} />
+        <Scene data={data} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} visualMode={visualMode} />
       </Suspense>
     </Canvas>
   );

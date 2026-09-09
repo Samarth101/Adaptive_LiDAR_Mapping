@@ -112,14 +112,16 @@ export default function SemanticMap2D({ data, frameIdx, mode, liveFrame }: Props
             const cls = BACKEND_CLASS_NAMES[cell_semantic_id[i]] || 'unlabeled';
             ctx.fillStyle = SEMANTIC_COLORS_HEX[cls] || '#555';
             
-            // Draw filled cell
-            ctx.fillRect(cx - s/2, cy - s/2, s+0.5, s+0.5);
+            // Draw filled cell (minimum pixel size so 5cm cells are visible to human eye)
+            const minRenderSize = Math.max(s, 1.5);
+            ctx.fillRect(cx - minRenderSize/2, cy - minRenderSize/2, minRenderSize, minRenderSize);
 
-            // Draw crisp boundaries for mid/far cells (resolution > 5cm)
+            // Draw crisp boundaries for mid/far cells to highlight adaptive compression
             if (res > 0.051) {
-              ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+              ctx.strokeStyle = res >= 0.25 ? 'rgba(255, 255, 255, 0.6)' : 'rgba(255, 255, 255, 0.2)';
               ctx.lineWidth = res >= 0.25 ? 1.5 : 0.8;
-              ctx.strokeRect(cx - s/2, cy - s/2, s, s);
+              const borderSize = Math.max(s, 2.0);
+              ctx.strokeRect(cx - borderSize/2, cy - borderSize/2, borderSize, borderSize);
             }
         }
 

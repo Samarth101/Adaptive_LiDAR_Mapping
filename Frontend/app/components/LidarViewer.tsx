@@ -43,6 +43,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
   const [fps, setFps] = useState(0);
   const [isDark, setIsDark] = useState(true);
   const [connected, setConnected] = useState(false);
+  const [visualMode, setVisualMode] = useState<'raw' | 'cells'>('raw');
   
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -289,6 +290,22 @@ export default function LidarViewer({ onFrameChange }: Props) {
                 ))}
             </select>
         )}
+
+        {/* Visual Mode Selector */}
+        {mode === 'live' && (
+          <div className="flex bg-muted rounded-full p-1 text-sm border border-border">
+              <button 
+                  onClick={() => setVisualMode('raw')} 
+                  className={`px-3 py-1 rounded-full transition-colors ${visualMode === 'raw' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}>
+                  Raw Points
+              </button>
+              <button 
+                  onClick={() => setVisualMode('cells')} 
+                  className={`px-3 py-1 rounded-full transition-colors ${visualMode === 'cells' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground'}`}>
+                  Adaptive Grid
+              </button>
+          </div>
+        )}
         
         {/* Sequence Selector */}
         {mode === 'live' && (
@@ -403,7 +420,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
 
           <div className="flex gap-3 justify-center">
             <div className="relative grow h-140 bg-background rounded-md overflow-hidden">
-              <LidarScene data={data} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} />
+              <LidarScene data={data} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} visualMode={visualMode} />
             </div>
             <div className="w-74 h-fit bg-card rounded-md">
               <MetricsHUD
