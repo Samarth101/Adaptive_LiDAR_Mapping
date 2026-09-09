@@ -146,7 +146,11 @@ export default function LidarViewer({ onFrameChange }: Props) {
   useEffect(() => {
     if (mode === 'simulated' || !connected) {
       if (wsRef.current) {
-        wsRef.current.close();
+        // Send stop action first so backend streaming loop exits cleanly
+        if (wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({ action: 'stop' }));
+        }
+        wsRef.current.close(1000, 'User disconnected');
         wsRef.current = null;
       }
       return;
@@ -243,8 +247,11 @@ export default function LidarViewer({ onFrameChange }: Props) {
   const memorySavings = mode === 'simulated' ? 
     (simulatedGridResult?.memorySavingsPct ?? 0) : 
     (liveFrame?.raw_x && liveFrame?.cell_x ? 
-      Math.max(0, 100 - (liveFrame.cell_x.length / liveFrame.raw_x.length) * 100) : 
+      Math.max(0, 100 - (liveFrame.cell_x.length / (liveFrame.num_points || liveFrame.raw_x.length)) * 100) : 
       0);
+
+  // In live mode, show the actual backend processing FPS, not screen render FPS
+  const displayFps = mode === 'live' && liveFrame ? liveFrame.inference_fps : fps;
 
   return (
     <div className="w-screen bg-transparent text-foreground overflow-y-auto overflow-x-hidden min-h-screen pb-12 relative">
@@ -403,9 +410,10 @@ export default function LidarViewer({ onFrameChange }: Props) {
                 metrics={mode === 'simulated' ? frame.metrics : {
                   objects_detected: currentObjects,
                 }}
-                fps={fps}
+                fps={displayFps}
                 memorySavingsPct={memorySavings}
                 frameId={currentFrameId}
+                mode={mode}
               />
             </div>
           </div>

@@ -387,6 +387,10 @@ class FrameProcessor:
             frame_data.raw_semantic_id = sem.astype(np.uint16)
             frame_data.raw_confidence = conf.astype(np.float32)
 
+        # Always send the REAL point count (before any subsampling) and backend FPS
+        frame_data.num_points = result.num_points
+        frame_data.inference_fps = result.fps
+
         # ── Elevation ────────────────────────────────────────────────
         if include_elevation and result.elevation_data:
             frame_data.cell_mean_height = np.array(

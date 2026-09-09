@@ -13,6 +13,7 @@ export default function MemorySavingsHUD({ gridResult, mode, liveFrame }: Props)
   let midCount = 0;
   let farCount = 0;
   let totalCount = 0;
+  let rawCount = 124668;
 
   if (mode === 'simulated' && gridResult) {
     memorySavingsPct = gridResult.memorySavingsPct;
@@ -23,10 +24,9 @@ export default function MemorySavingsHUD({ gridResult, mode, liveFrame }: Props)
   } else if (mode === 'live' && liveFrame && liveFrame.cell_x) {
     totalCount = liveFrame.cell_x.length;
 
-    // Compare adaptive 2.5D cells vs a uniform 2D grid at 5cm (0.05m)
-    // covering a 200m × 200m area: (200/0.05)^2 = 16,000,000 cells
-    const uniformCellCount = (200 / 0.05) * (200 / 0.05); // 16,000,000
-    memorySavingsPct = Math.max(0, (1 - totalCount / uniformCellCount) * 100);
+    // Use real point count from backend (before any subsampling)
+    rawCount = liveFrame.num_points > 0 ? liveFrame.num_points : (liveFrame.raw_x ? liveFrame.raw_x.length : 124668);
+    memorySavingsPct = Math.max(0, (1 - totalCount / rawCount) * 100);
 
     // Count cells per band matching backend config bands
     for (let i = 0; i < totalCount; i++) {
@@ -42,9 +42,12 @@ export default function MemorySavingsHUD({ gridResult, mode, liveFrame }: Props)
   return (
     <div className="h-fit w-full text-sm p-4 justify-center text-foreground font-bold">
       <div className="text-emerald-500 mb-1.5 text-base">
-        {memorySavingsPct.toFixed(2)}% memory savings vs uniform 2D grid (0.05m)
+        {memorySavingsPct.toFixed(2)}% memory savings vs raw point cloud
       </div>
-      <div className="text-muted-foreground mb-8 text-xs font-normal">
+      <div className="text-emerald-500/80 mb-2 text-xs font-mono font-normal">
+        Math: 100 - ({totalCount} cells / {rawCount} raw pts) * 100
+      </div>
+      <div className="text-muted-foreground mb-6 text-xs font-normal">
         3D → adaptive 2.5D foveated grid (majority-vote semantic)
       </div>
       <div className="space-y-3 text-muted-foreground">

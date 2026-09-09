@@ -8,6 +8,7 @@ interface Props {
   fps: number;
   memorySavingsPct: number;
   frameId: number;
+  mode: 'simulated' | 'live';
 }
 
 function Bar({ value, max, colorClass }: { value: number; max: number; colorClass: string }) {
@@ -19,7 +20,9 @@ function Bar({ value, max, colorClass }: { value: number; max: number; colorClas
   );
 }
 
-export default function MetricsHUD({ metrics, fps, memorySavingsPct, frameId }: Props) {
+export default function MetricsHUD({ metrics, fps, memorySavingsPct, frameId, mode }: Props) {
+  const fpsLabel = mode === 'live' ? 'Processing FPS' : 'Render FPS';
+  const fpsDisplay = mode === 'live' ? fps.toFixed(2) : fps.toFixed(0);
   return (
     <div className="p-4 h-fit space-y-3">
       <div className="text-sm">
@@ -27,7 +30,7 @@ export default function MetricsHUD({ metrics, fps, memorySavingsPct, frameId }: 
       </div>
       <Separator />
       <div className="flex flex-col gap-5">
-        <Row label="Render FPS" value={fps.toFixed(0)} valueClass="text-foreground" />
+        <Row label={fpsLabel} value={fpsDisplay} valueClass="text-foreground" />
 
         <BarRow label="Objects Detected" value={String(metrics.objects_detected)} barValue={metrics.objects_detected} barMax={20} barClass="bg-primary" valueClass="text-foreground" />
       </div>

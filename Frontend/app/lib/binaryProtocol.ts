@@ -38,6 +38,10 @@ export interface FrameData {
   obj_h?: Float32Array;
   obj_heading?: Float32Array;
   obj_conf?: Float32Array;
+
+  // Real stats from backend
+  num_points: number;      // actual raw point count before subsampling
+  inference_fps: number;   // backend processing FPS
 }
 
 const MAGIC = 0x4C494441;
@@ -59,13 +63,15 @@ export function deserializeBinary(buffer: ArrayBuffer): FrameData {
   const frame_id = dataView.getUint32(8, true);
   const timestamp = dataView.getFloat64(12, true);
   const cell_count = dataView.getUint32(20, true);
-  const point_count = dataView.getUint32(24, true);
+  const point_count = dataView.getUint32(24, true);   // subsampled count for array layout
   const obj_count = dataView.getUint32(28, true);
   const ego_x = dataView.getFloat32(32, true);
   const ego_y = dataView.getFloat32(36, true);
   const ego_heading = dataView.getFloat32(40, true);
+  const num_points = dataView.getUint32(44, true);    // REAL total point count
+  const inference_fps = dataView.getFloat32(48, true); // backend processing FPS
   
-  let offset = 48;
+  let offset = 52;  // expanded header is now 52 bytes
   
   const readArray = <T extends Float32Array | Uint16Array | Uint32Array>(
     Constructor: { new(buffer: ArrayBuffer, byteOffset: number, length: number): T; BYTES_PER_ELEMENT: number },
@@ -82,6 +88,8 @@ export function deserializeBinary(buffer: ArrayBuffer): FrameData {
 
   const frame: FrameData = {
     frame_id, timestamp, ego_x, ego_y, ego_heading,
+    num_points: num_points || point_count,
+    inference_fps: inference_fps || 0,
     cell_x: readArray(Float32Array, cell_count),
     cell_y: readArray(Float32Array, cell_count),
     cell_resolution: readArray(Float32Array, cell_count),
