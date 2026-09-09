@@ -408,6 +408,22 @@ async def ws_stream(websocket: WebSocket):
                 # Send binary frame
                 await websocket.send_bytes(binary)
                 timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+                
+                # Build class distribution summary
+                from collections import Counter
+                pred_dist = Counter(result.prediction.semantic_ids)
+                pred_summary = ", ".join(
+                    f"{CLASS_NAMES.get(k, f'?{k}')}={v}"
+                    for k, v in sorted(pred_dist.items(), key=lambda x: -x[1])[:8]
+                )
+                
+                # Object type summary
+                obj_types = Counter(o['type'] for o in result.objects) if result.objects else {}
+                obj_summary = ", ".join(
+                    f"{CLASS_NAMES.get(k, f'?{k}')}={v}"
+                    for k, v in sorted(obj_types.items(), key=lambda x: -x[1])
+                ) if obj_types else "none"
+                
                 print(
                     f"[{timestamp}] Streamed Frame: idx={current_frame_idx}/{len(frame_list)} | "
                     f"seq={current_seq} | model={current_model} | fps={result.fps:.1f}\n"
@@ -415,7 +431,9 @@ async def ws_stream(websocket: WebSocket):
                     f"Inference={result.inference_ms:.1f}, Grid={result.grid_ms:.1f}, "
                     f"Elevation={result.elevation_ms:.1f}, Total={result.total_ms:.1f}\n"
                     f"   VERBOSE STATS: Points={result.num_points}, Cells={result.num_cells}, "
-                    f"Compression={result.compression_ratio:.1f}x"
+                    f"Compression={result.compression_ratio:.1f}x\n"
+                    f"   PRED CLASSES (top 8): {pred_summary}\n"
+                    f"   DETECTED OBJECTS ({len(result.objects)}): {obj_summary}"
                 )
 
                 # Advance frame

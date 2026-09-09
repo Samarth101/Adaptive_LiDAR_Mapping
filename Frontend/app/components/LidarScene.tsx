@@ -18,23 +18,55 @@ function d2t(p: readonly [number, number, number]): [number, number, number] {
 
 // ─── Point cloud shaders ──────────────────────────────────────────────────────
 const VERT = /* glsl */`
+  uniform float uIsCell;
   attribute vec4 aColor;
-  varying   vec4 vColor;
+  attribute float aSize;
+  varying vec4 vColor;
+  varying float vIsCell;
+
   void main() {
     vColor = aColor;
+    vIsCell = uIsCell;
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = clamp(3.8 - (-mv.z) * 0.016, 1.0, 4.2);
-    gl_Position  = projectionMatrix * mv;
+    float distance = max(-mv.z, 0.1);
+    
+    if (uIsCell > 0.5) {
+      // In Adaptive Grid mode, physical cell size (aSize in meters: 0.05m near to 0.5m far)
+      // scales into visual square tiles on screen so compression is immediately perceptible!
+      float meterScale = max(aSize, 0.05) * 340.0;
+      float pixelSize = meterScale / (distance + 0.8);
+      gl_PointSize = clamp(pixelSize, 4.0, 75.0);
+    } else {
+      // Raw LiDAR point cloud: small uniform crisp points
+      gl_PointSize = clamp(4.2 - distance * 0.018, 1.5, 5.0);
+    }
+
+    gl_Position = projectionMatrix * mv;
   }
 `;
 const FRAG = /* glsl */`
   varying vec4 vColor;
+  varying float vIsCell;
+
   void main() {
-    vec2  uv  = gl_PointCoord - 0.5;
-    float rsq = dot(uv, uv);
-    if (rsq > 0.25) discard;
-    float soft = smoothstep(0.25, 0.04, rsq);
-    gl_FragColor = vec4(vColor.rgb, vColor.a * soft);
+    if (vIsCell > 0.5) {
+      // CRISP SQUARE CELL with distinct bright grid boundary!
+      vec2 uv = abs(gl_PointCoord - 0.5);
+      float edge = max(uv.x, uv.y);
+      if (edge > 0.42) {
+        // High-contrast cell border (makes foveated cells instantly visible)
+        gl_FragColor = vec4(1.0, 1.0, 1.0, 0.9);
+      } else {
+        gl_FragColor = vec4(vColor.rgb, 0.95);
+      }
+    } else {
+      // RAW POINT: Soft circular point
+      vec2  uv  = gl_PointCoord - 0.5;
+      float rsq = dot(uv, uv);
+      if (rsq > 0.25) discard;
+      float soft = smoothstep(0.25, 0.04, rsq);
+      gl_FragColor = vec4(vColor.rgb, vColor.a * soft);
+    }
   }
 `;
 
@@ -50,25 +82,26 @@ const BACKEND_CLASS_NAMES: Record<number, string> = {
 };
 
 // ─── PointCloud ───────────────────────────────────────────────────────────────
-function PointCloud({ points, mode, liveFrame, carPosRef, frameIdxRef }: {
+function PointCloud({ points, mode, liveFrame, carPosRef, frameIdxRef, visualMode }: {
   points: LidarPoint[];
   mode: 'simulated' | 'live';
   liveFrame: FrameData | null;
   carPosRef: React.RefObject<THREE.Vector3>;
   frameIdxRef: React.RefObject<number>;
+  visualMode?: 'raw' | 'cells';
 }) {
   const geoRef = useRef<THREE.BufferGeometry>(null);
-  const lastFi = useRef(-1);
-  const lastFrameId = useRef(-1);
+  const isCellMode = visualMode === 'cells';
 
   // Compute buffers
-  const { positions, baseColors, colorBuffer, count } = useMemo(() => {
+  const { positions, baseColors, colorBuffer, sizes, count } = useMemo(() => {
     if (mode === 'simulated') {
-      // SIMULATED DATA
+      // SIMULATED DATA (always raw)
       const n = points.length;
       const positions = new Float32Array(n * 3);
       const baseColors = new Float32Array(n * 4);
       const colorBuffer = new Float32Array(n * 4);
+      const sizes = new Float32Array(n).fill(0.0);
 
       for (let i = 0; i < n; i++) {
         const [tx, ty, tz] = d2t(points[i].position);
@@ -78,90 +111,109 @@ function PointCloud({ points, mode, liveFrame, carPosRef, frameIdxRef }: {
 
         const rgb = LIDAR_RGB[points[i].classification];
         const isKnown = !!rgb;
-        const actualRgb = rgb ?? [0, 0, 0];
+        const actualRgb = rgb ?? [0.5, 0.5, 0.5];
 
         baseColors[i * 4] = actualRgb[0];
         baseColors[i * 4 + 1] = actualRgb[1];
         baseColors[i * 4 + 2] = actualRgb[2];
         baseColors[i * 4 + 3] = isKnown ? 1.0 : 0.0;
 
-        colorBuffer[i * 4] = actualRgb[0] * 0.15;
-        colorBuffer[i * 4 + 1] = actualRgb[1] * 0.15;
-        colorBuffer[i * 4 + 2] = actualRgb[2] * 0.15;
-        colorBuffer[i * 4 + 3] = isKnown ? 0.08 : 0.0;
+        colorBuffer[i * 4] = actualRgb[0];
+        colorBuffer[i * 4 + 1] = actualRgb[1];
+        colorBuffer[i * 4 + 2] = actualRgb[2];
+        colorBuffer[i * 4 + 3] = isKnown ? 0.9 : 0.0;
       }
-      return { positions, baseColors, colorBuffer, count: n };
+      return { positions, baseColors, colorBuffer, sizes, count: n };
     } else {
       // LIVE BACKEND DATA
-      if (!liveFrame || !liveFrame.raw_x) {
-          return {
-              positions: new Float32Array(0),
-              baseColors: new Float32Array(0),
-              colorBuffer: new Float32Array(0),
-              count: 0
-          };
+      if (!liveFrame) {
+        return {
+          positions: new Float32Array(0), baseColors: new Float32Array(0),
+          colorBuffer: new Float32Array(0), sizes: new Float32Array(0), count: 0
+        };
       }
-      const n = liveFrame.raw_x.length;
+      
+      const isCells = isCellMode && liveFrame.cell_x && liveFrame.cell_x.length > 0;
+      if (!isCells && (!liveFrame.raw_x || liveFrame.raw_x.length === 0)) {
+        return {
+          positions: new Float32Array(0), baseColors: new Float32Array(0),
+          colorBuffer: new Float32Array(0), sizes: new Float32Array(0), count: 0
+        };
+      }
+
+      const n = isCells ? liveFrame.cell_x.length : liveFrame.raw_x!.length;
       const positions = new Float32Array(n * 3);
       const baseColors = new Float32Array(n * 4);
       const colorBuffer = new Float32Array(n * 4);
+      const sizes = new Float32Array(n);
 
-      const xs = liveFrame.raw_x;
-      const ys = liveFrame.raw_y || new Float32Array(n);
-      const zs = liveFrame.raw_z || new Float32Array(n);
-      const sems = liveFrame.raw_semantic_id!;
+      const xs = isCells ? liveFrame.cell_x : liveFrame.raw_x!;
+      const ys = isCells ? liveFrame.cell_y : (liveFrame.raw_y || new Float32Array(n));
+      const sems = isCells ? liveFrame.cell_semantic_id : liveFrame.raw_semantic_id!;
+      const zs = isCells ? liveFrame.cell_ground_elev : (liveFrame.raw_z || new Float32Array(n));
+      const resolutions = isCells ? liveFrame.cell_resolution : null;
+      const objHeights = isCells ? liveFrame.cell_object_height : null;
 
       for (let i = 0; i < n; i++) {
-        // Backend coordinates are already X forward, Y left, Z up.
-        const px = xs[i], py = ys[i], pz = zs[i];
-        // We use them directly so the car stays at the origin.
-        const [tx, ty, tz] = d2t([px, py, pz]);
+        const px = xs[i];
+        const py = ys[i];
         
+        // In cells mode, if an obstacle has height > 0.2m, elevate the cell so it's not flat on the road
+        let pz = zs[i];
+        if (isCells && objHeights && objHeights[i] > 0.25) {
+          pz += objHeights[i] * 0.5;
+        }
+
+        const [tx, ty, tz] = d2t([px, py, pz]);
         positions[i * 3] = tx;
         positions[i * 3 + 1] = ty;
         positions[i * 3 + 2] = tz;
 
+        sizes[i] = resolutions ? resolutions[i] : 0.0;
+
         const clsName = BACKEND_CLASS_NAMES[sems[i]] || 'unlabeled';
         const rgb = LIDAR_RGB[clsName];
         const isKnown = !!rgb;
-        const actualRgb = rgb ?? [0, 0, 0];
+        const actualRgb = rgb ?? [0.5, 0.5, 0.5];
 
         baseColors[i * 4] = actualRgb[0];
         baseColors[i * 4 + 1] = actualRgb[1];
         baseColors[i * 4 + 2] = actualRgb[2];
         baseColors[i * 4 + 3] = isKnown ? 1.0 : 0.0;
 
-        colorBuffer[i * 4] = actualRgb[0] * 0.15;
-        colorBuffer[i * 4 + 1] = actualRgb[1] * 0.15;
-        colorBuffer[i * 4 + 2] = actualRgb[2] * 0.15;
-        colorBuffer[i * 4 + 3] = isKnown ? 0.08 : 0.0;
+        // Fully visible right from the start
+        colorBuffer[i * 4] = actualRgb[0];
+        colorBuffer[i * 4 + 1] = actualRgb[1];
+        colorBuffer[i * 4 + 2] = actualRgb[2];
+        colorBuffer[i * 4 + 3] = isKnown ? 0.95 : 0.0;
       }
-      return { positions, baseColors, colorBuffer, count: n };
+      return { positions, baseColors, colorBuffer, sizes, count: n };
     }
-  }, [points, mode, liveFrame]);
+  }, [points, mode, liveFrame, isCellMode]);
 
   const mat = useMemo(() => new THREE.ShaderMaterial({
-    uniforms: {}, vertexShader: VERT, fragmentShader: FRAG,
-    transparent: true, depthWrite: false, blending: THREE.NormalBlending,
+    uniforms: {
+      uIsCell: { value: 0.0 }
+    },
+    vertexShader: VERT,
+    fragmentShader: FRAG,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.NormalBlending,
   }), []);
 
-  useFrame(() => {
-    let shouldUpdate = false;
-    const fi = frameIdxRef.current ?? 0;
-    
-    if (mode === 'simulated' && fi !== lastFi.current) {
-        shouldUpdate = true;
-        lastFi.current = fi;
-    } else if (mode === 'live' && liveFrame && liveFrame.frame_id !== lastFrameId.current) {
-        shouldUpdate = true;
-        lastFrameId.current = liveFrame.frame_id;
+  useEffect(() => {
+    if (mat.uniforms.uIsCell) {
+      mat.uniforms.uIsCell.value = isCellMode ? 1.0 : 0.0;
     }
+  }, [mat, isCellMode]);
 
-    if (!shouldUpdate) return;
-
+  useFrame(() => {
     const geo = geoRef.current;
     const attr = geo?.getAttribute('aColor') as THREE.BufferAttribute | undefined;
-    if (!attr) return;
+    const posAttr = geo?.getAttribute('position') as THREE.BufferAttribute | undefined;
+    if (!attr || !posAttr) return;
+    if (attr.count !== count || posAttr.count !== count || count === 0) return;
 
     const { x: cx, y: cy, z: cz } = carPosRef.current!;
     const colors = attr.array as Float32Array;
@@ -179,13 +231,13 @@ function PointCloud({ points, mode, liveFrame, carPosRef, frameIdxRef }: {
         alpha = 1.0; bright = 1.0;
       } else if (dSq <= MID_SQ) {
         const t = (Math.sqrt(dSq) - 15) / 30;
-        alpha = 0.85 - 0.65 * t;
-        bright = 1.00 - 0.40 * t;
+        alpha = 0.90 - 0.50 * t;
+        bright = 1.00 - 0.30 * t;
       } else {
         const d = Math.sqrt(dSq);
-        const t = Math.min((d - 45) / 50, 1.0);
-        alpha = Math.max(0.18 - 0.14 * t, 0.04);
-        bright = Math.max(0.38 - 0.28 * t, 0.10);
+        const t = Math.min((d - 45) / 55, 1.0);
+        alpha = Math.max(0.40 - 0.20 * t, 0.15);
+        bright = Math.max(0.50 - 0.20 * t, 0.25);
       }
 
       colors[i4] = baseColors[i4] * bright;
@@ -197,10 +249,14 @@ function PointCloud({ points, mode, liveFrame, carPosRef, frameIdxRef }: {
   });
 
   return (
-    <points frustumCulled={false}>
+    <points
+      key={`pc-${mode}-${isCellMode ? 'cell' : 'raw'}-${liveFrame?.frame_id ?? frameIdxRef.current ?? 0}-${count}`}
+      frustumCulled={false}
+    >
       <bufferGeometry ref={geoRef}>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} count={count} array={positions} itemSize={3} />
-        <bufferAttribute attach="attributes-aColor" args={[colorBuffer, 4]} count={count} array={colorBuffer} itemSize={4} />
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+        <bufferAttribute attach="attributes-aColor" args={[colorBuffer, 4]} />
+        <bufferAttribute attach="attributes-aSize" args={[sizes, 1]} />
       </bufferGeometry>
       <primitive object={mat} attach="material" />
     </points>
@@ -262,7 +318,7 @@ function DetectedObjects3D({ frames, frameIdxRef, mode, liveFrame }: {
               <group key={i} position={[tx, height / 2, tz]} rotation={[0, -obj.heading, 0]}>
                 <mesh>
                   <boxGeometry args={[obj.size[0], height, obj.size[1]]} />
-                  <meshBasicMaterial color={color} transparent opacity={opacity * 0.2} depthWrite={false} />
+                  <meshBasicMaterial color={color} transparent opacity={opacity * 0.15} depthWrite={false} />
                 </mesh>
                 <lineSegments>
                   <edgesGeometry args={[new THREE.BoxGeometry(obj.size[0], height, obj.size[1])]} />
@@ -308,7 +364,7 @@ function DetectedObjects3D({ frames, frameIdxRef, mode, liveFrame }: {
               <group key={i} position={[tx, ty, tz]} rotation={[0, -heading, 0]}>
                 <mesh>
                   <boxGeometry args={[l, h, w]} />
-                  <meshBasicMaterial color={color} transparent opacity={opacity * 0.2} depthWrite={false} />
+                  <meshBasicMaterial color={color} transparent opacity={opacity * 0.15} depthWrite={false} />
                 </mesh>
                 <lineSegments>
                   <edgesGeometry args={[new THREE.BoxGeometry(l, h, w)]} />
@@ -370,11 +426,12 @@ function CameraRig({ carPosRef }: { carPosRef: React.RefObject<THREE.Vector3> })
 }
 
 // ─── Scene ────────────────────────────────────────────────────────────────────
-function Scene({ data, frameIdxRef, mode, liveFrame }: {
+function Scene({ data, frameIdxRef, mode, liveFrame, visualMode }: {
   data: DemoData;
   frameIdxRef: React.RefObject<number>;
   mode: 'simulated' | 'live';
   liveFrame: FrameData | null;
+  visualMode?: 'raw' | 'cells';
 }) {
   const carPosRef = useRef(new THREE.Vector3(0.9, 0, 0));
   const headingRef = useRef(0);
@@ -387,8 +444,10 @@ function Scene({ data, frameIdxRef, mode, liveFrame }: {
         carPosRef.current.set(vp[0], vp[2], -vp[1]);
         headingRef.current = data.frames[fi].vehicle.heading;
     } else if (liveFrame) {
-        const vp = [0, 0, 0];
-        const [tx, ty, tz] = d2t(vp as [number, number, number]);
+        // LiDAR sensor is ~1.73m above ground. Ground points are at Z ≈ -1.73.
+        // d2t maps Z to Y in Three.js. Car should sit on the ground plane.
+        const sensorHeight = -1.73; // Z of ground in sensor frame
+        const [tx, ty, tz] = d2t([0, 0, sensorHeight] as [number, number, number]);
         carPosRef.current.set(tx, ty, tz);
         headingRef.current = liveFrame.ego_heading;
     }
@@ -410,6 +469,7 @@ function Scene({ data, frameIdxRef, mode, liveFrame }: {
         frameIdxRef={frameIdxRef}
         mode={mode}
         liveFrame={liveFrame}
+        visualMode={visualMode}
       />
 
       <GLTFCar carPosRef={carPosRef} headingRef={headingRef} />
@@ -423,11 +483,12 @@ function Scene({ data, frameIdxRef, mode, liveFrame }: {
   );
 }
 
-export default function LidarScene({ data, frameIdxRef, mode, liveFrame }: {
+export default function LidarScene({ data, frameIdxRef, mode, liveFrame, visualMode }: {
   data: DemoData;
   frameIdxRef: React.RefObject<number>;
   mode: 'simulated' | 'live';
   liveFrame: FrameData | null;
+  visualMode?: 'raw' | 'cells';
 }) {
   return (
     <Canvas
@@ -437,7 +498,7 @@ export default function LidarScene({ data, frameIdxRef, mode, liveFrame }: {
       className="w-full h-full bg-(--color-1)"
     >
       <Suspense fallback={null}>
-        <Scene data={data} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} />
+        <Scene data={data} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} visualMode={visualMode} />
       </Suspense>
     </Canvas>
   );

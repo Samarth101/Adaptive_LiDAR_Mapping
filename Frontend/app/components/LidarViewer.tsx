@@ -43,6 +43,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
   const [fps, setFps] = useState(0);
   const [isDark, setIsDark] = useState(true);
   const [connected, setConnected] = useState(false);
+  const [visualMode, setVisualMode] = useState<'raw' | 'cells'>('raw');
   
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -146,7 +147,11 @@ export default function LidarViewer({ onFrameChange }: Props) {
   useEffect(() => {
     if (mode === 'simulated' || !connected) {
       if (wsRef.current) {
-        wsRef.current.close();
+        // Send stop action first so backend streaming loop exits cleanly
+        if (wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({ action: 'stop' }));
+        }
+        wsRef.current.close(1000, 'User disconnected');
         wsRef.current = null;
       }
       return;
@@ -243,8 +248,11 @@ export default function LidarViewer({ onFrameChange }: Props) {
   const memorySavings = mode === 'simulated' ? 
     (simulatedGridResult?.memorySavingsPct ?? 0) : 
     (liveFrame?.raw_x && liveFrame?.cell_x ? 
-      Math.max(0, 100 - (liveFrame.cell_x.length / liveFrame.raw_x.length) * 100) : 
+      Math.max(0, 100 - (liveFrame.cell_x.length / (liveFrame.num_points || liveFrame.raw_x.length)) * 100) : 
       0);
+
+  // In live mode, show the actual backend processing FPS, not screen render FPS
+  const displayFps = mode === 'live' && liveFrame ? liveFrame.inference_fps : fps;
 
   return (
     <div className="w-screen bg-transparent text-foreground overflow-y-auto overflow-x-hidden min-h-screen pb-12 relative">
@@ -270,6 +278,10 @@ export default function LidarViewer({ onFrameChange }: Props) {
             </button>
         </div>
 
+        <a href="/explorer" className="px-4 py-1.5 rounded-full text-sm font-medium transition-colors border border-cyan-500/50 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 ml-2">
+            Explorer / Docs
+        </a>
+
         {/* Model Selector */}
         {mode === 'live' && (
             <select 
@@ -281,6 +293,22 @@ export default function LidarViewer({ onFrameChange }: Props) {
                     <option key={m} value={m}>{m}</option>
                 ))}
             </select>
+        )}
+
+        {/* Visual Mode Selector */}
+        {mode === 'live' && (
+          <div className="flex bg-muted rounded-full p-1 text-sm border border-border">
+              <button 
+                  onClick={() => setVisualMode('raw')} 
+                  className={`px-3 py-1 rounded-full transition-colors ${visualMode === 'raw' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}>
+                  Raw Points
+              </button>
+              <button 
+                  onClick={() => setVisualMode('cells')} 
+                  className={`px-3 py-1 rounded-full transition-colors ${visualMode === 'cells' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground'}`}>
+                  Adaptive Grid
+              </button>
+          </div>
         )}
         
         {/* Sequence Selector */}
@@ -396,16 +424,17 @@ export default function LidarViewer({ onFrameChange }: Props) {
 
           <div className="flex gap-3 justify-center">
             <div className="relative grow h-140 bg-background rounded-md overflow-hidden">
-              <LidarScene data={data} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} />
+              <LidarScene data={data} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} visualMode={visualMode} />
             </div>
             <div className="w-74 h-fit bg-card rounded-md">
               <MetricsHUD
                 metrics={mode === 'simulated' ? frame.metrics : {
                   objects_detected: currentObjects,
                 }}
-                fps={fps}
+                fps={displayFps}
                 memorySavingsPct={memorySavings}
                 frameId={currentFrameId}
+                mode={mode}
               />
             </div>
           </div>
