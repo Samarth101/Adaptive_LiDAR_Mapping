@@ -13,6 +13,7 @@ export default function MemorySavingsHUD({ gridResult, mode, liveFrame }: Props)
   let midCount = 0;
   let farCount = 0;
   let totalCount = 0;
+  let rawCount = 124668;
 
   if (mode === 'simulated' && gridResult) {
     memorySavingsPct = gridResult.memorySavingsPct;
@@ -22,43 +23,48 @@ export default function MemorySavingsHUD({ gridResult, mode, liveFrame }: Props)
     totalCount = nearCount + midCount + farCount;
   } else if (mode === 'live' && liveFrame && liveFrame.cell_x) {
     totalCount = liveFrame.cell_x.length;
-    const rawCount = liveFrame.raw_x ? liveFrame.raw_x.length : 120000;
-    memorySavingsPct = Math.max(0, 100 - (totalCount / rawCount) * 100);
 
-    // Count cells per band
+    // Use real point count from backend (before any subsampling)
+    rawCount = liveFrame.num_points > 0 ? liveFrame.num_points : (liveFrame.raw_x ? liveFrame.raw_x.length : 124668);
+    memorySavingsPct = Math.max(0, (1 - totalCount / rawCount) * 100);
+
+    // Count cells per band matching backend config bands
     for (let i = 0; i < totalCount; i++) {
       const x = liveFrame.cell_x[i];
       const y = liveFrame.cell_y[i];
       const dist = Math.sqrt(x * x + y * y);
-      if (dist < 5.0) nearCount++;
-      else if (dist < 20.0) midCount++;
+      if (dist < 10.0) nearCount++;
+      else if (dist < 60.0) midCount++;
       else farCount++;
     }
   }
 
   return (
-    <div className="h-fit w-full text-sm p-4 justify-center text-foreground">
-      <div className="text-emerald-500 mb-1.5">
-        {memorySavingsPct.toFixed(1)}% memory vs uniform 5cm (0.05m)
+    <div className="h-fit w-full text-sm p-4 justify-center text-foreground font-bold">
+      <div className="text-emerald-500 mb-1.5 text-base">
+        {memorySavingsPct.toFixed(2)}% memory savings vs raw point cloud
       </div>
-      <div className="text-muted-foreground mb-8">
-        3D to 2.5D grid (majority-vote semantic)
+      <div className="text-emerald-500/80 mb-2 text-xs font-mono font-normal">
+        Math: 100 - ({totalCount} cells / {rawCount} raw pts) * 100
+      </div>
+      <div className="text-muted-foreground mb-6 text-xs font-normal">
+        3D → adaptive 2.5D foveated grid (majority-vote semantic)
       </div>
       <div className="space-y-3 text-muted-foreground">
         <div className="flex justify-between items-center text-foreground">
           <span>Total cells projected</span>
           <span>{totalCount} cells</span>
         </div>
-        <div className="flex justify-between items-center">
-          <span>Near 5cm (0-5m)</span>
+        <div className="flex justify-between items-center text-cyan-400">
+          <span>Near 5cm (0-10m)</span>
           <span>{nearCount} cells</span>
         </div>
-        <div className="flex justify-between items-center">
-          <span>Mid 50cm (5-20m)</span>
+        <div className="flex justify-between items-center text-amber-500">
+          <span>Mid 10-25cm (10-60m)</span>
           <span>{midCount} cells</span>
         </div>
-        <div className="flex justify-between items-center">
-          <span>Far 50cm (20-100m)</span>
+        <div className="flex justify-between items-center text-red-400">
+          <span>Far 50cm (60-100m)</span>
           <span>{farCount} cells</span>
         </div>
       </div>

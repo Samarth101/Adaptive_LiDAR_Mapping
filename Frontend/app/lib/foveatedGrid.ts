@@ -16,14 +16,18 @@
 import type { LidarPoint, DetectedObject } from '../types/dataset';
 
 // -- Zone boundaries (metres from ego) ----------------------------------------
-export const NEAR_RADIUS = 5;
-export const MID_RADIUS  = 20;
+// PS Requirement: high resolution within a 10m radius, decreasing up to a 100m radius
+export const NEAR_RADIUS = 10;
+export const MID_RADIUS  = 30;
 export const FAR_RADIUS  = 100;
 
-// Cell size per zone (matching dataset regeneration)
+// Cell size per zone: each range has a distinct cell size
+// Near (0-10m):   5cm (0.05m) cells
+// Mid  (10-30m): 50cm (0.50m) cells
+// Far  (30-100m): 100cm (1.00m) cells
 export const NEAR_CELL_SIZE = 0.05;
-export const MID_CELL_SIZE  = 0.5;
-export const FAR_CELL_SIZE  = 0.5;
+export const MID_CELL_SIZE  = 0.50;
+export const FAR_CELL_SIZE  = 1.00;
 
 import {
   SEMANTIC_COLORS_HEX,

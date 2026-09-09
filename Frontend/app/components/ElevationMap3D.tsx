@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import DeckGL from '@deck.gl/react';
 import { PolygonLayer } from '@deck.gl/layers';
 import Map from 'react-map-gl/maplibre';
@@ -8,14 +8,6 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import type { DemoData } from '../types/dataset';
 import { buildFoveatedGrid } from '../lib/foveatedGrid';
 import type { FrameData } from '../lib/binaryProtocol';
-
-const INITIAL_VIEW_STATE = {
-  longitude: 0,
-  latitude: 0,
-  zoom: 18,
-  pitch: 60,
-  bearing: 0
-};
 
 // Convert meters to approx degrees at equator (for deck.gl)
 const M_TO_DEG = 1 / 111320;
@@ -37,6 +29,41 @@ interface Props {
 
 export default function ElevationMap3D({ data, frameIdxRef, mode, liveFrame }: Props) {
   const fi = frameIdxRef.current ?? 0;
+
+  // Controlled view state: defaults to an angled third-person view focusing the car
+  const [viewState, setViewState] = useState({
+    longitude: (data?.frames?.[0]?.vehicle?.position?.[0] ?? 0) * M_TO_DEG,
+    latitude: (data?.frames?.[0]?.vehicle?.position?.[1] ?? 0) * M_TO_DEG,
+    zoom: 19.2,
+    pitch: 52,
+    bearing: -65,
+    maxPitch: 85,
+  });
+
+  const onViewStateChange = useCallback(({ viewState: newViewState }: any) => {
+    setViewState(newViewState);
+  }, []);
+
+  // Smoothly track the vehicle coordinates without resetting user's pitch/bearing/zoom
+  useEffect(() => {
+    if (mode === 'simulated' && data?.frames?.[fi]) {
+      const carLng = data.frames[fi].vehicle.position[0] * M_TO_DEG;
+      const carLat = data.frames[fi].vehicle.position[1] * M_TO_DEG;
+      setViewState(prev => ({
+        ...prev,
+        longitude: carLng,
+        latitude: carLat,
+      }));
+    } else if (mode === 'live' && liveFrame) {
+      const carLng = liveFrame.ego_x * M_TO_DEG;
+      const carLat = liveFrame.ego_y * M_TO_DEG;
+      setViewState(prev => ({
+        ...prev,
+        longitude: carLng,
+        latitude: carLat,
+      }));
+    }
+  }, [fi, mode, liveFrame, data]);
 
   const layers = useMemo(() => {
     if (mode === 'simulated') {
@@ -95,13 +122,49 @@ export default function ElevationMap3D({ data, frameIdxRef, mode, liveFrame }: P
         wireframe: true
       });
 
-      return [cellLayer, objLayer];
+      // Dedicated 3D Ego Vehicle Layer focusing the car
+      const egoVehicle = {
+        position: frame.vehicle.position,
+        heading: frame.vehicle.heading,
+        size: [4.5, 2.0, 1.5] as [number, number, number],
+      };
+
+      const egoLayer = new PolygonLayer({
+        id: 'ego-vehicle',
+        data: [egoVehicle],
+        getPolygon: d => {
+          const l = (d.size[0] / 2) * M_TO_DEG;
+          const w = (d.size[1] / 2) * M_TO_DEG;
+          const cx = d.position[0] * M_TO_DEG;
+          const cy = d.position[1] * M_TO_DEG;
+          const cos = Math.cos(d.heading);
+          const sin = Math.sin(d.heading);
+          
+          const rot = (x: number, y: number) => [
+            cx + x * cos - y * sin,
+            cy + x * sin + y * cos
+          ];
+
+          return [
+            rot(-l, -w),
+            rot(l, -w),
+            rot(l, w),
+            rot(-l, w)
+          ];
+        },
+        getFillColor: [0, 229, 255, 240], // Bright cyan ego vehicle
+        getLineColor: [255, 255, 255, 255],
+        lineWidthMinPixels: 2,
+        getElevation: 1.5,
+        extruded: true,
+        wireframe: true
+      });
+
+      return [cellLayer, objLayer, egoLayer];
       
     } else {
       if (!liveFrame) return [];
 
-      // We need to convert SoA arrays to an array of objects for deck.gl, or use a custom layer.
-      // For simplicity, we convert to array of objects.
       const cellCount = liveFrame.cell_x.length;
       const cellsData = new Array(cellCount);
       for(let i=0; i<cellCount; i++) {
@@ -118,7 +181,6 @@ export default function ElevationMap3D({ data, frameIdxRef, mode, liveFrame }: P
         data: cellsData,
         getPolygon: d => {
           const hs = d.res / 2 * M_TO_DEG;
-          // Apply ego transform if needed, but if we keep it local:
           const cx = (d.x + liveFrame.ego_x) * M_TO_DEG;
           const cy = (d.y + liveFrame.ego_y) * M_TO_DEG;
           return [
@@ -181,25 +243,11 @@ export default function ElevationMap3D({ data, frameIdxRef, mode, liveFrame }: P
     }
   }, [fi, mode, liveFrame, data]);
 
-  const viewState = useMemo(() => {
-     let center = [0,0];
-     if (mode === 'simulated' && data.frames[fi]) {
-         center = [data.frames[fi].vehicle.position[0] * M_TO_DEG, data.frames[fi].vehicle.position[1] * M_TO_DEG];
-     } else if (liveFrame) {
-         center = [liveFrame.ego_x * M_TO_DEG, liveFrame.ego_y * M_TO_DEG];
-     }
-     return {
-         ...INITIAL_VIEW_STATE,
-         longitude: center[0],
-         latitude: center[1]
-     };
-  }, [fi, mode, liveFrame, data]);
-
-
   return (
     <div className="absolute inset-0" onContextMenu={e => e.preventDefault()}>
       <DeckGL
-        initialViewState={viewState}
+        viewState={viewState}
+        onViewStateChange={onViewStateChange}
         controller={true}
         layers={layers}
       >

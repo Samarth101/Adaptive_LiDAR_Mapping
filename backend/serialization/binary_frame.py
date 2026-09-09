@@ -62,6 +62,10 @@ class FrameData:
     obj_heading: Optional[np.ndarray] = None     # Float32Array
     obj_conf: Optional[np.ndarray] = None        # Float32Array
 
+    # Extra stats sent to frontend
+    num_points: int = 0      # REAL total point count before subsampling
+    inference_fps: float = 0.0  # Backend processing FPS (1000 / total_ms)
+
 
 def serialize_binary(frame: FrameData) -> bytes:
     flags = 0
@@ -88,22 +92,25 @@ def serialize_binary(frame: FrameData) -> bytes:
     cell_ground_elev = frame.cell_ground_elev.astype(np.float32)
     cell_point_count = frame.cell_point_count.astype(np.uint32)
 
-    # 48-byte header V2
-    # magic:       uint32    (0x4C494441 = "LIDA")
-    # version:     uint16    (2)
-    # flags:       uint16    
-    # frame_id:    uint32
-    # timestamp:   float64
-    # cell_count:  uint32
-    # point_count: uint32    
-    # obj_count:   uint32
-    # ego_x:       float32
-    # ego_y:       float32
-    # ego_heading: float32
-    # reserved:    uint32
+    # 52-byte header V2
+    # magic:          uint32    (0x4C494441 = "LIDA")
+    # version:        uint16    (2)
+    # flags:          uint16    
+    # frame_id:       uint32
+    # timestamp:      float64
+    # cell_count:     uint32
+    # point_count:    uint32    (subsampled raw points for array layout)
+    # obj_count:      uint32
+    # ego_x:          float32
+    # ego_y:          float32
+    # ego_heading:    float32
+    # num_points:     uint32    (REAL total points before subsampling)
+    # inference_fps:  float32   (backend processing fps)
+    
+    num_pts_real = frame.num_points if frame.num_points > 0 else (len(frame.raw_x) if frame.raw_x is not None else 0)
     
     header = struct.pack(
-        "<I H H I d I I I f f f I",
+        "<I H H I d I I I f f f I f",
         MAGIC,
         VERSION,
         flags,
@@ -115,7 +122,8 @@ def serialize_binary(frame: FrameData) -> bytes:
         frame.ego_x,
         frame.ego_y,
         frame.ego_heading,
-        0 # reserved
+        num_pts_real,
+        float(frame.inference_fps),
     )
     
     # Padding for cell_semantic_id (uint16)
@@ -330,6 +338,10 @@ def serialize_json(frame: FrameData) -> str:
         res["obj_h"] = frame.obj_h.tolist()
         res["obj_heading"] = frame.obj_heading.tolist()
         res["obj_conf"] = frame.obj_conf.tolist()
+
+    # Always include real point count and backend FPS
+    res["num_points"] = frame.num_points
+    res["inference_fps"] = frame.inference_fps
 
     return json.dumps(res)
 

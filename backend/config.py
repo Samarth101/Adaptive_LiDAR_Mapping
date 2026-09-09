@@ -93,7 +93,7 @@ class BackendConfig:
     cylinder3d_grid_size: List[int] = field(
         default_factory=lambda: [480, 360, 32]
     )
-    cylinder3d_checkpoint: str = ""  # set after downloading weights
+    cylinder3d_checkpoint: str = str(_find_dir("checkpoints") / "cylinder3d" / "epoch_28_miou_63.pt")
 
     # ── MinkUNet / MMDet3D specific ──────────────────────────────────────
     minkuNet_config: str = ""

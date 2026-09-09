@@ -65,14 +65,22 @@ export default function SemanticMap2D({ data, frameIdx, mode, liveFrame }: Props
         const egoX = vp[0];
         const egoY = vp[1];
 
-        // Draw cells
+        // Draw cells with distinct sizes per resolution band
         gridResult.cells.forEach(cell => {
           const dx = (cell.cx - egoX) * scale;
           const dy = (cell.cy - egoY) * scale;
-          const s = cell.size * scale;
+          // Ensure near 5cm cells remain crisp and visible, while mid and far show their true scale
+          const s = Math.max(cell.zone === 'near' ? 1.5 : 3.0, cell.size * scale);
           
           ctx.fillStyle = SEMANTIC_COLORS_HEX[cell.semantic] || '#555';
-          ctx.fillRect(dx - s/2, dy - s/2, s, s);
+          ctx.fillRect(dx - s / 2, dy - s / 2, s, s);
+
+          // Render crisp grid boundaries on mid and far cells to visually distinguish adaptive resolution
+          if (cell.zone === 'far' || cell.zone === 'mid') {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.lineWidth = cell.zone === 'far' ? 1.5 : 0.8;
+            ctx.strokeRect(dx - s / 2, dy - s / 2, s, s);
+          }
         });
 
         // Draw detected objects
@@ -96,18 +104,25 @@ export default function SemanticMap2D({ data, frameIdx, mode, liveFrame }: Props
         const { cell_x, cell_y, cell_resolution, cell_semantic_id } = liveFrame;
         
         for (let i = 0; i < cell_x.length; i++) {
-            // Points are already relative to ego if we don't add ego_x, but let's check
-            // Actually they are in local space (lidar frame). X is forward, Y is left.
-            // On canvas, let X be right, Y be down.
             const cx = cell_x[i] * scale;
             const cy = -cell_y[i] * scale; // invert Y for canvas
-            const s = cell_resolution[i] * scale;
+            const res = cell_resolution[i];
+            const s = res * scale;
             
             const cls = BACKEND_CLASS_NAMES[cell_semantic_id[i]] || 'unlabeled';
             ctx.fillStyle = SEMANTIC_COLORS_HEX[cls] || '#555';
             
-            // For live data, draw cells as slightly padded boxes to hide seams
-            ctx.fillRect(cx - s/2, cy - s/2, s+0.5, s+0.5);
+            // Draw filled cell (minimum pixel size so 5cm cells are visible to human eye)
+            const minRenderSize = Math.max(s, 1.5);
+            ctx.fillRect(cx - minRenderSize/2, cy - minRenderSize/2, minRenderSize, minRenderSize);
+
+            // Draw crisp boundaries for mid/far cells to highlight adaptive compression
+            if (res > 0.051) {
+              ctx.strokeStyle = res >= 0.25 ? 'rgba(255, 255, 255, 0.6)' : 'rgba(255, 255, 255, 0.2)';
+              ctx.lineWidth = res >= 0.25 ? 1.5 : 0.8;
+              const borderSize = Math.max(s, 2.0);
+              ctx.strokeRect(cx - borderSize/2, cy - borderSize/2, borderSize, borderSize);
+            }
         }
 
         // Draw Live Objects
@@ -130,17 +145,58 @@ export default function SemanticMap2D({ data, frameIdx, mode, liveFrame }: Props
         }
     }
 
-    // Draw Ego Vehicle marker
-    ctx.fillStyle = '#ff0000';
+    // Draw Ego Vehicle marker with heading orientation
+    ctx.save();
+    ctx.fillStyle = '#00e5ff';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.5;
+    const egoCarW = 2.0 * scale;
+    const egoCarL = 4.5 * scale;
     ctx.beginPath();
-    ctx.arc(0, 0, 4, 0, Math.PI * 2);
+    ctx.roundRect(-egoCarL / 2, -egoCarW / 2, egoCarL, egoCarW, 2);
     ctx.fill();
+    ctx.stroke();
+    // Forward direction pointer
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(egoCarL / 2 + 2, 0);
+    ctx.lineTo(egoCarL / 2 - 3, -2.5);
+    ctx.lineTo(egoCarL / 2 - 3, 2.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
     
-    // Draw rings
-    ctx.strokeStyle = '#ff000055';
-    ctx.beginPath(); ctx.arc(0, 0, 10 * scale, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(0, 0, 30 * scale, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(0, 0, 60 * scale, 0, Math.PI * 2); ctx.stroke();
+    // Draw adaptive range rings (10m Near, 30m Mid, 100m Far)
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+
+    // 10m Ring (Near boundary - 5cm)
+    ctx.strokeStyle = 'rgba(0, 229, 255, 0.6)';
+    ctx.beginPath();
+    ctx.arc(0, 0, 10 * scale, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 30m Ring (Mid boundary - 50cm)
+    ctx.strokeStyle = 'rgba(255, 170, 0, 0.5)';
+    ctx.beginPath();
+    ctx.arc(0, 0, 30 * scale, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 100m Ring (Far boundary - 100cm)
+    ctx.strokeStyle = 'rgba(255, 68, 68, 0.4)';
+    ctx.beginPath();
+    ctx.arc(0, 0, 100 * scale, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Range ring labels
+    ctx.font = '9px system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(0, 229, 255, 0.8)';
+    ctx.fillText('10m (5cm)', 10 * scale + 3, -4);
+    ctx.fillStyle = 'rgba(255, 170, 0, 0.8)';
+    ctx.fillText('30m (50cm)', 30 * scale + 3, -4);
+    ctx.fillStyle = 'rgba(255, 68, 68, 0.7)';
+    ctx.fillText('100m (1m)', 100 * scale + 3, -4);
 
     ctx.restore();
   }, [gridResult, mode, liveFrame, frameIdx, data]);
