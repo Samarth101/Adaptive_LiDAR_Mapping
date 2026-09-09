@@ -109,6 +109,8 @@ export function buildFoveatedGrid(
     } else if (dist <= MID_RADIUS) {
       cellSize = MID_CELL_SIZE;  zone = 'mid';
     } else if (dist <= FAR_RADIUS) {
+      // Simulate LiDAR sparsity at long distances by dropping 80% of points
+      if (Math.random() > 0.2) continue;
       cellSize = FAR_CELL_SIZE;  zone = 'far';
     } else {
       continue; // outside FAR_RADIUS -- skip

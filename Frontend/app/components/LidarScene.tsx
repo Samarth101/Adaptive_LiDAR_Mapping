@@ -288,6 +288,31 @@ function GLTFCar({ carPosRef, headingRef }: {
 
 useGLTF.preload('/car.glb');
 
+const MODEL_MAP: Record<string, { path: string, rotation: [number, number, number], yOffset: number }> = {
+  'car': { path: '/explorer_assests/basic_car.glb', rotation: [0, Math.PI, 0], yOffset: 0 },
+  'truck': { path: '/explorer_assests/auto.glb', rotation: [0, Math.PI / 2, 0], yOffset: -0.5 },
+  'person': { path: '/explorer_assests/person.glb', rotation: [0, 0, 0], yOffset: -0.5 },
+  'bicycle': { path: '/explorer_assests/bicycle.glb', rotation: [0, -Math.PI / 2, 0], yOffset: 0 },
+  'motorcycle': { path: '/explorer_assests/motorcycle.glb', rotation: [0, -Math.PI / 2, 0], yOffset: 0 },
+  'bicyclist': { path: '/explorer_assests/bicycle.glb', rotation: [0, -Math.PI / 2, 0], yOffset: 0 },
+  'motorcyclist': { path: '/explorer_assests/motorcycle.glb', rotation: [0, -Math.PI / 2, 0], yOffset: 0 },
+  'other-vehicle': { path: '/explorer_assests/auto.glb', rotation: [0, Math.PI / 2, 0], yOffset: -0.5 }
+};
+
+Object.values(MODEL_MAP).forEach(info => useGLTF.preload(info.path));
+
+function GLTFModel({ type }: { type: string }) {
+  const info = MODEL_MAP[type];
+  if (!info) return null;
+  const { scene } = useGLTF(info.path);
+  const cloned = useMemo(() => scene.clone(), [scene]);
+  return (
+    <group position={[0, info.yOffset, 0]}>
+      <primitive object={cloned} rotation={info.rotation} />
+    </group>
+  );
+}
+
 // ─── Detected Objects 3D ───────────────
 function DetectedObjects3D({ frames, frameIdxRef, mode, liveFrame }: { 
     frames: Frame[]; 
@@ -307,7 +332,7 @@ function DetectedObjects3D({ frames, frameIdxRef, mode, liveFrame }: {
       return (
         <group>
           {frames[fi]?.detected_objects.map((obj, i) => {
-            const [tx, , tz] = d2t(obj.position as [number, number, number]);
+            const [tx, ty, tz] = d2t(obj.position as [number, number, number]);
             const color = OBJ_TYPE_COLORS[obj.type] || '#888';
             const height = obj.size[2] || 1.5;
             const opacity = 0.5 + obj.confidence * 0.5;
@@ -315,11 +340,10 @@ function DetectedObjects3D({ frames, frameIdxRef, mode, liveFrame }: {
             const badge = objClass === 'static' ? '[S]' : objClass === 'dynamic' ? '[D]' : '';
     
             return (
-              <group key={i} position={[tx, height / 2, tz]} rotation={[0, -obj.heading, 0]}>
-                <mesh>
-                  <boxGeometry args={[obj.size[0], height, obj.size[1]]} />
-                  <meshBasicMaterial color={color} transparent opacity={opacity * 0.15} depthWrite={false} />
-                </mesh>
+              <group key={i} position={[tx, ty, tz]} rotation={[0, -obj.heading, 0]}>
+                <group position={[0, -height / 2, 0]}>
+                  <GLTFModel type={obj.type} />
+                </group>
                 <lineSegments>
                   <edgesGeometry args={[new THREE.BoxGeometry(obj.size[0], height, obj.size[1])]} />
                   <lineBasicMaterial color={color} transparent opacity={opacity} />
@@ -362,10 +386,9 @@ function DetectedObjects3D({ frames, frameIdxRef, mode, liveFrame }: {
 
           objects.push(
               <group key={i} position={[tx, ty, tz]} rotation={[0, -heading, 0]}>
-                <mesh>
-                  <boxGeometry args={[l, h, w]} />
-                  <meshBasicMaterial color={color} transparent opacity={opacity * 0.15} depthWrite={false} />
-                </mesh>
+                <group position={[0, -h / 2, 0]}>
+                  <GLTFModel type={typeName} />
+                </group>
                 <lineSegments>
                   <edgesGeometry args={[new THREE.BoxGeometry(l, h, w)]} />
                   <lineBasicMaterial color={color} transparent opacity={opacity} />

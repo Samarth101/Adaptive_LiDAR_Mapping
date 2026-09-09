@@ -31,12 +31,19 @@ export default function SemanticMap2D({ data, frameIdx, mode, liveFrame }: Props
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    
+    // Dynamically resize canvas to match its parent container to fill full width
+    const parent = canvas.parentElement;
+    if (parent) {
+      if (canvas.width !== parent.clientWidth) canvas.width = parent.clientWidth;
+      if (canvas.height !== parent.clientHeight) canvas.height = parent.clientHeight;
+    }
+
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // We want the viewport to cover ~[-60, +120] in X and [-60, +60] in Y relative to the ego.
-    // The canvas is e.g. 800x800 -> let's map a 120x120m area
-    const VIEW_SIZE = 120; 
+    // We want the viewport to cover a smaller, zoomed-in area centered around the ego vehicle.
+    const VIEW_SIZE = 60; 
     const w = canvas.width;
     const h = canvas.height;
     
@@ -57,8 +64,8 @@ export default function SemanticMap2D({ data, frameIdx, mode, liveFrame }: Props
     ctx.stroke();
 
     ctx.save();
-    // Center ego at middle-left (since LiDAR often looks forward X)
-    ctx.translate(w / 4, h / 2);
+    // Center ego at the exact center of the map
+    ctx.translate(w / 2, h / 2);
 
     if (mode === 'simulated' && gridResult) {
         const vp = data.frames[frameIdx].vehicle.position;
@@ -202,11 +209,11 @@ export default function SemanticMap2D({ data, frameIdx, mode, liveFrame }: Props
   }, [gridResult, mode, liveFrame, frameIdx, data]);
 
   return (
-    <canvas 
-      ref={canvasRef}
-      width={800}
-      height={800}
-      className="w-full h-full object-contain"
-    />
+    <div className="w-full h-full overflow-hidden flex items-center justify-center">
+      <canvas 
+        ref={canvasRef}
+        className="block"
+      />
+    </div>
   );
 }

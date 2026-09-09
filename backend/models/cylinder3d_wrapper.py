@@ -234,15 +234,12 @@ class Cylinder3DWrapper(BaseSegmentationModel):
         pt_fea_tensor, vox_ind_tensor = self._prepare_input(xyz_tensor, intensity_tensor)
 
         with torch.no_grad():
-            # Use mixed precision (FP16) for faster inference on CUDA
-            use_amp = (device == "cuda")
-            with torch.amp.autocast('cuda', enabled=use_amp):
-                # Forward pass through the combined model
-                output = self._model(
-                    [pt_fea_tensor],      # list of per-batch point features
-                    [vox_ind_tensor],     # list of per-batch voxel indices
-                    batch_size=1,
-                )
+            # Run inference in FP32 (autocast causes spconv tuner profile failure on RTX 40-series sm_89 GPUs)
+            output = self._model(
+                [pt_fea_tensor],      # list of per-batch point features
+                [vox_ind_tensor],     # list of per-batch voxel indices
+                batch_size=1,
+            )
 
             # output shape: [batch, nclasses, grid_rho, grid_theta, grid_z]
             # Map voxel predictions back to points
