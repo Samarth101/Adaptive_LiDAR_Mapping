@@ -12,6 +12,7 @@ import InteractiveDotPattern from './InteractiveDotPattern';
 import { Play, Pause, Moon, Sun, GitBranch, Settings } from 'lucide-react';
 import Image from 'next/image';
 import { deserializeBinary, FrameData } from '../lib/binaryProtocol';
+import Footer from './Footer';
 
 // Dynamic imports (WebGL / canvas — client only)
 const LidarScene = dynamic(() => import('./LidarScene'), { ssr: false });
@@ -423,8 +424,8 @@ export default function LidarViewer({ onFrameChange }: Props) {
           </div>
 
           <div className="flex gap-3 justify-center">
-            <div className="relative grow h-140 bg-background rounded-md overflow-hidden">
-              <LidarScene data={data} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} visualMode={visualMode} />
+            <div className="relative grow h-140 bg-background rounded-md overflow-hidden select-none">
+              <LidarScene data={data} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} />
             </div>
             <div className="w-74 h-fit bg-card rounded-md">
               <MetricsHUD
@@ -496,6 +497,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
         )}
 
       </div>
+      <Footer />
     </div>
   );
 }

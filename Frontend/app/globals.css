@@ -11,10 +11,11 @@
 }
 
 :root {
-
-  --background: oklch(0.92 0 0); /* Darkened slightly to make pure white cards pop */
+  --background: oklch(0.92 0 0);
+  /* Darkened slightly to make pure white cards pop */
   --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0); /* Pure white */
+  --card: oklch(1 0 0);
+  /* Pure white */
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
@@ -55,7 +56,10 @@ body {
   color: var(--foreground);
 }
 
-
+::selection {
+  background-color: var(--foreground);
+  color: var(--background);
+}
 
 ::-webkit-scrollbar {
   width: 4px;
@@ -151,9 +155,11 @@ body {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
+
   html {
     @apply font-sans;
   }
