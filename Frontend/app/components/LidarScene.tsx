@@ -288,43 +288,6 @@ function GLTFCar({ carPosRef, headingRef }: {
 
 useGLTF.preload('/car.glb');
 
-const MODEL_PATHS: Record<string, string> = {
-  car: '/car.glb',
-  truck: '/models/box-truck.glb',
-  bicycle: '/models/bicycle_game_asset.glb',
-  bicyclist: '/models/bicycle_game_asset.glb',
-  'other-vehicle': '/models/low_poly_autorickshaw_aka_tuktuk.glb',
-  pole: '/models/electricity_pole.glb',
-  'traffic-sign': '/models/traffic_light.glb',
-  vegetation: '/models/maple_tree.glb',
-  trunk: '/models/maple_tree.glb',
-  fence: '/models/fence_concrete-_15mb.glb',
-};
-
-function Semantic3DModel({ modelPath, l, h, w }: { modelPath: string; l: number; h: number; w: number }) {
-  const { scene } = useGLTF(modelPath);
-  const cloned = useMemo(() => {
-    const clone = scene.clone(true);
-    const box = new THREE.Box3().setFromObject(clone);
-    const size = new THREE.Vector3();
-    box.getSize(size);
-    const center = new THREE.Vector3();
-    box.getCenter(center);
-    
-    // Center model at bounding box bottom-center
-    clone.position.set(-center.x, -box.min.y - h / 2, -center.z);
-    
-    // Scale model to fit detected bounding box
-    const maxDim = Math.max(size.x, size.y, size.z, 0.1);
-    const targetDim = Math.max(l, h, w, 0.5);
-    const s = Math.min(targetDim / maxDim, 2.0);
-    clone.scale.set(s, s, s);
-    return clone;
-  }, [scene, l, h, w]);
-
-  return <primitive object={cloned} />;
-}
-
 // ─── Detected Objects 3D ───────────────
 function DetectedObjects3D({ frames, frameIdxRef, mode, liveFrame }: { 
     frames: Frame[]; 
@@ -350,15 +313,9 @@ function DetectedObjects3D({ frames, frameIdxRef, mode, liveFrame }: {
             const opacity = 0.5 + obj.confidence * 0.5;
             const objClass = getObjectClass(obj.type);
             const badge = objClass === 'static' ? '[S]' : objClass === 'dynamic' ? '[D]' : '';
-            const modelUrl = MODEL_PATHS[obj.type] || (objClass === 'dynamic' ? '/car.glb' : undefined);
     
             return (
               <group key={i} position={[tx, height / 2, tz]} rotation={[0, -obj.heading, 0]}>
-                {modelUrl && (
-                  <Suspense fallback={null}>
-                    <Semantic3DModel modelPath={modelUrl} l={obj.size[0]} h={height} w={obj.size[1]} />
-                  </Suspense>
-                )}
                 <mesh>
                   <boxGeometry args={[obj.size[0], height, obj.size[1]]} />
                   <meshBasicMaterial color={color} transparent opacity={opacity * 0.15} depthWrite={false} />
@@ -402,15 +359,9 @@ function DetectedObjects3D({ frames, frameIdxRef, mode, liveFrame }: {
           const opacity = 0.5 + liveFrame.obj_conf![i] * 0.5;
           const objClass = getObjectClass(typeName);
           const badge = objClass === 'static' ? '[S]' : objClass === 'dynamic' ? '[D]' : '';
-          const modelUrl = MODEL_PATHS[typeName] || (objClass === 'dynamic' ? '/car.glb' : undefined);
 
           objects.push(
               <group key={i} position={[tx, ty, tz]} rotation={[0, -heading, 0]}>
-                {modelUrl && i < 15 && (
-                  <Suspense fallback={null}>
-                    <Semantic3DModel modelPath={modelUrl} l={l} h={h} w={w} />
-                  </Suspense>
-                )}
                 <mesh>
                   <boxGeometry args={[l, h, w]} />
                   <meshBasicMaterial color={color} transparent opacity={opacity * 0.15} depthWrite={false} />
