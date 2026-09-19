@@ -83,49 +83,49 @@ export default function UniformVsAdaptive() {
   };
 
   return (
-    <div className="flex-1 bg-slate-950 rounded-xl border border-slate-800 flex overflow-hidden shadow-2xl relative">
+    <div className="flex-1 bg-background rounded-xl border border-border flex overflow-hidden shadow-2xl relative">
       
       {/* Left panel: Info & Controls */}
-      <div className="w-1/3 bg-slate-900 border-r border-slate-800 p-6 flex flex-col justify-between relative z-10">
+      <div className="w-1/3 bg-card border-r border-border p-6 flex flex-col justify-between relative z-10">
         <div>
-          <h3 className="text-xl font-bold text-slate-100 mb-4">Memory Bottleneck</h3>
-          <p className="text-slate-400 text-sm mb-6">
+          <h3 className="text-xl font-normal text-foreground mb-4">Memory Bottleneck</h3>
+          <p className="text-muted-foreground text-sm mb-6">
             A uniform grid maps the distant sky and close-up roads with the exact same resolution. 
             This creates massive, unnecessary spatial arrays in GPU memory.
           </p>
 
-          <div className="flex flex-col gap-2 bg-slate-950 p-1 rounded-lg border border-slate-800">
+          <div className="flex flex-col gap-2 bg-background p-1 rounded-lg border border-border">
             <button 
               onClick={() => setMode('uniform')}
-              className={`py-3 px-4 text-sm font-medium rounded-md transition-all flex justify-between items-center ${
-                mode === 'uniform' ? 'bg-slate-800 text-slate-100' : 'text-slate-500 hover:text-slate-300'
+              className={`py-3 px-4 text-sm font-normal rounded-md transition-all flex justify-between items-center ${
+                mode === 'uniform' ? 'bg-muted text-foreground' : 'text-muted-foreground/70 hover:text-muted-foreground'
               }`}
             >
               <span>Uniform Grid (5cm)</span>
-              {mode === 'uniform' && <span className="w-2 h-2 rounded-full bg-cyan-500" />}
+              {mode === 'uniform' && <span className="w-2 h-2 rounded-full bg-primary" />}
             </button>
             <button 
               onClick={() => setMode('adaptive')}
-              className={`py-3 px-4 text-sm font-medium rounded-md transition-all flex justify-between items-center ${
-                mode === 'adaptive' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30' : 'text-slate-500 hover:text-slate-300'
+              className={`py-3 px-4 text-sm font-normal rounded-md transition-all flex justify-between items-center ${
+                mode === 'adaptive' ? 'bg-primary/10 text-primary border border-primary/30' : 'text-muted-foreground/70 hover:text-muted-foreground'
               }`}
             >
               <span>Adaptive Grid (5 - 50cm)</span>
-              {mode === 'adaptive' && <span className="w-2 h-2 rounded-full bg-cyan-500 shadow-[0_0_8px_#06b6d4]" />}
+              {mode === 'adaptive' && <span className="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_#ebebeb]" />}
             </button>
           </div>
         </div>
 
-        <div className="bg-slate-950 rounded-lg border border-slate-800 p-4 mt-8">
-          <div className="text-xs text-slate-500 mb-1 font-mono uppercase tracking-wider">Live Metrics</div>
+        <div className="bg-background rounded-lg border border-border p-4 mt-8">
+          <div className="text-xs text-muted-foreground/70 mb-1 font-mono tracking-normal">Live Metrics</div>
           <div className="flex justify-between items-baseline mb-4">
-            <div className="text-slate-400 text-sm">Total Cells</div>
-            <div className="text-2xl font-mono text-cyan-400 transition-all duration-500">
+            <div className="text-muted-foreground text-sm">Total Cells</div>
+            <div className="text-2xl font-mono text-primary transition-all duration-500">
               {mode === 'uniform' ? '40,000' : '484'}
             </div>
           </div>
           <div className="flex justify-between items-baseline">
-            <div className="text-slate-400 text-sm">Memory Savings</div>
+            <div className="text-muted-foreground text-sm">Memory Savings</div>
             <div className="text-2xl font-mono text-emerald-400 transition-all duration-500">
               {mode === 'uniform' ? '0.0%' : '98.7%'}
             </div>
@@ -134,7 +134,7 @@ export default function UniformVsAdaptive() {
       </div>
 
       {/* Right panel: SVG Visualization */}
-      <div className="w-2/3 bg-[#020617] relative flex items-center justify-center p-8">
+      <div className="w-2/3 bg-background relative flex items-center justify-center p-8">
         
         {/* Subtle grid background */}
         <div className="absolute inset-0 opacity-10 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
@@ -151,16 +151,16 @@ export default function UniformVsAdaptive() {
           {/* Tooltip on hover */}
           {hoveredCell && (
             <div 
-              className="absolute pointer-events-none bg-slate-900 border border-cyan-500/50 text-cyan-50 px-3 py-2 rounded shadow-xl text-xs z-20 flex flex-col gap-1 transition-all"
+              className="absolute pointer-events-none bg-card border border-primary/50 text-primary-foreground px-3 py-2 rounded shadow-xl text-xs z-20 flex flex-col gap-1 transition-all"
               style={{
                 left: `calc(${(hoveredCell.x / 400) * 100}% + 20px)`,
                 top: `calc(${(hoveredCell.y / 400) * 100}% - 10px)`
               }}
             >
-              <div className="flex items-center gap-2 text-slate-400">
+              <div className="flex items-center gap-2 text-muted-foreground">
                 <MousePointer2 className="w-3 h-3" /> Cell Inspector
               </div>
-              <div>Res: <span className="font-mono text-cyan-400">{hoveredCell.res}</span></div>
+              <div>Res: <span className="font-mono text-primary">{hoveredCell.res}</span></div>
             </div>
           )}
         </div>

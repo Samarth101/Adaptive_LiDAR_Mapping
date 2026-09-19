@@ -7,12 +7,14 @@ import dynamic from 'next/dynamic';
 import MetricsHUD from '@/components/lidar/MetricsHUD';
 import MemorySavingsHUD from '@/components/lidar/MemorySavingsHUD';
 import SemanticLegend from '@/components/lidar/SemanticLegend';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import InteractiveDotPattern from '@/components/layout/InteractiveDotPattern';
-import { Play, Pause, Moon, Sun, GitBranch, Settings } from 'lucide-react';
+import { BookOpen } from 'lucide-react';
 import Image from 'next/image';
+import ThemeToggle from '@/components/theme/ThemeToggle';
 import { deserializeBinary, FrameData } from '@/lib/binaryProtocol';
 import Footer from '@/components/layout/Footer';
+import Link from 'next/link';
 
 // Dynamic imports (WebGL / canvas — client only)
 const LidarScene = dynamic(() => import('@/components/lidar/LidarScene'), { ssr: false });
@@ -31,39 +33,25 @@ export default function LidarViewer({ onFrameChange }: Props) {
   const [availableModels, setAvailableModels] = useState<string[]>(['pointnet2', 'cylinder3d', 'minkunet']);
   const [sequence, setSequence] = useState<string>('00');
   const [availableSequences, setAvailableSequences] = useState<any[]>([]);
-  
+
   // Data states
   const [data, setData] = useState<DemoData | null>(null);
   const [liveFrame, setLiveFrame] = useState<FrameData | null>(null);
-  
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [frameIdx, setFrameIdx] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [fps, setFps] = useState(0);
-  const [isDark, setIsDark] = useState(true);
   const [connected, setConnected] = useState(false);
   const [visualMode, setVisualMode] = useState<'raw' | 'cells'>('raw');
-  
+
   const wsRef = useRef<WebSocket | null>(null);
 
   const frameIdxRef = useRef(0);
   const lastFpsTime = useRef(performance.now());
   const fpsFrameCount = useRef(0);
-
-  useEffect(() => {
-    setIsDark(document.documentElement.classList.contains('dark'));
-  }, []);
-
-  const toggleTheme = useCallback(() => {
-    setIsDark((prev) => {
-      const next = !prev;
-      if (next) document.documentElement.classList.add('dark');
-      else document.documentElement.classList.remove('dark');
-      return next;
-    });
-  }, []);
 
   // FPS counter
   useEffect(() => {
@@ -112,7 +100,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
 
         if (!resModels.ok) throw new Error(`HTTP ${resModels.status}`);
         const modelsData = await resModels.json();
-        
+
         if (isMounted) {
           if (Array.isArray(modelsData) && modelsData.length > 0) {
             setAvailableModels(modelsData.map((m: any) => m.name));
@@ -162,7 +150,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
 
     const ws = new WebSocket('ws://localhost:8000/ws/stream');
     ws.binaryType = 'arraybuffer';
-    
+
     ws.onopen = () => {
       ws.send(JSON.stringify({ action: "start", model: model, sequence: sequence }));
     };
@@ -179,7 +167,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
         }
       }
     };
-    
+
     ws.onerror = (e) => {
       console.error("WS error:", e);
     };
@@ -239,17 +227,17 @@ export default function LidarViewer({ onFrameChange }: Props) {
   }
 
   const frame = data.frames[frameIdx];
-  
+
   // Create unified representation to pass to components
   // To avoid rewriting every component heavily, we pass `mode`, `liveFrame`, `data` (sim data) and let them handle it.
-  
+
   const currentSpeed = mode === 'simulated' ? frame.vehicle.speed_kmh.toFixed(1) : (liveFrame ? 'N/A' : '0.0');
   const currentObjects = mode === 'simulated' ? frame.detected_objects.length : (liveFrame?.obj_id?.length ?? 0);
   const currentFrameId = mode === 'simulated' ? frame.frame_id : (liveFrame?.frame_id ?? 0);
-  const memorySavings = mode === 'simulated' ? 
-    (simulatedGridResult?.memorySavingsPct ?? 0) : 
-    (liveFrame?.raw_x && liveFrame?.cell_x ? 
-      Math.max(0, 100 - (liveFrame.cell_x.length / (liveFrame.num_points || liveFrame.raw_x.length)) * 100) : 
+  const memorySavings = mode === 'simulated' ?
+    (simulatedGridResult?.memorySavingsPct ?? 0) :
+    (liveFrame?.raw_x && liveFrame?.cell_x ?
+      Math.max(0, 100 - (liveFrame.cell_x.length / (liveFrame.num_points || liveFrame.raw_x.length)) * 100) :
       0);
 
   // In live mode, show the actual backend processing FPS, not screen render FPS
@@ -263,96 +251,85 @@ export default function LidarViewer({ onFrameChange }: Props) {
       <div className="fixed top-3 left-3 w-fit bg-card/30 backdrop-blur-xs px-6 py-3 rounded-full z-50 border flex items-center justify-center">
         <Image src="/logo.png" alt="Data Exploiters Logo" width={150} height={32} className="h-6 w-auto dark:invert" />
       </div>
-      <div className="fixed top-3 right-3 w-fit bg-card/30 backdrop-blur-xs px-3 py-2 rounded-full flex items-center gap-3 z-50 border">
-        
-        {/* Mode Selector */}
-        <div className="flex bg-muted rounded-full p-1 text-sm border border-border">
-            <button 
-                onClick={() => setMode('simulated')} 
-                className={`px-3 py-1 rounded-full transition-colors ${mode === 'simulated' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}>
-                Simulated
+      <div className="fixed top-3 right-3 w-fit flex flex-col items-end gap-2 z-50 pointer-events-none">
+        {/* Main Right Header */}
+        <div className="bg-card/50 backdrop-blur-xs p-2 rounded-full flex items-center gap-2 border pointer-events-auto shadow-sm">
+          <Link
+            href="/docs"
+            className="px-3.5 py-1.5 rounded-full text-sm bg-muted flex items-center gap-1.5 text-foreground"
+          >
+            <BookOpen className="w-4 h-4" />
+            <span>Docs</span>
+          </Link>
+
+          {/* Mode Selector */}
+          <div className="flex bg-muted rounded-full p-0.5 text-sm">
+            <button
+              onClick={() => setMode('simulated')}
+              className={`px-3 py-1 rounded-full transition-colors ${mode === 'simulated' ? 'bg-foreground text-background shadow-sm' : ''}`}>
+              Simulated
             </button>
-            <button 
-                onClick={() => setMode('live')} 
-                className={`px-3 py-1 rounded-full transition-colors ${mode === 'live' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground'}`}>
-                Live Backend
+            <button
+              onClick={() => setMode('live')}
+              className={`px-3 py-1 rounded-full transition-colors ${mode === 'live' ? 'bg-foreground text-background shadow-sm' : ''}`}>
+              Live Backend
             </button>
+          </div>
+
+          <ThemeToggle />
+
+          <Button
+            onClick={togglePlay}
+            variant='default'
+            className={"rounded-full px-3"}
+          >
+            {playing ? 'Pause' : 'Play'}
+          </Button>
         </div>
 
-        <a href="/docs" className="px-4 py-1.5 rounded-full text-sm font-medium transition-colors border border-cyan-500/50 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 ml-2">
-            Explorer / Docs
-        </a>
-
-        {/* Model Selector */}
-        {mode === 'live' && (
-            <select 
-                className="bg-background border border-border rounded-full px-3 py-1.5 text-sm"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
+        {/* Sub Header for Live Settings */}
+        <div
+          className={`transition-all duration-300 ease-out origin-top flex items-center pointer-events-auto ${mode === 'live' ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-8 pointer-events-none'}`}
+        >
+          <div className="bg-card/50 backdrop-blur-xs p-2 rounded-full flex items-center gap-3 border shadow-sm">
+            <select
+              className="bg-muted rounded-full px-3 py-1.5 text-sm"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
             >
-                {availableModels.map(m => (
-                    <option key={m} value={m}>{m}</option>
-                ))}
+              {availableModels.map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
             </select>
-        )}
-
-        {/* Visual Mode Selector */}
-        {mode === 'live' && (
-          <div className="flex bg-muted rounded-full p-1 text-sm border border-border">
-              <button 
-                  onClick={() => setVisualMode('raw')} 
-                  className={`px-3 py-1 rounded-full transition-colors ${visualMode === 'raw' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}>
-                  Raw Points
+            <div className="flex bg-muted rounded-full p-0.5 text-sm">
+              <button
+                onClick={() => setVisualMode('raw')}
+                className={`px-3 py-1 rounded-full transition-colors ${visualMode === 'raw' ? 'bg-foreground text-background' : ''}`}>
+                Raw Points
               </button>
-              <button 
-                  onClick={() => setVisualMode('cells')} 
-                  className={`px-3 py-1 rounded-full transition-colors ${visualMode === 'cells' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground'}`}>
-                  Adaptive Grid
+              <button
+                onClick={() => setVisualMode('cells')}
+                className={`px-3 py-1 rounded-full transition-colors ${visualMode === 'cells' ? 'bg-foreground text-background' : ''}`}>
+                Adaptive Grid
               </button>
-          </div>
-        )}
-        
-        {/* Sequence Selector */}
-        {mode === 'live' && (
-            <select 
-                className="bg-background border border-border rounded-full px-3 py-1.5 text-sm"
-                value={sequence}
-                onChange={(e) => setSequence(e.target.value)}
+            </div>
+            <select
+              className="bg-muted rounded-full px-3 py-1.5 text-sm"
+              value={sequence}
+              onChange={(e) => setSequence(e.target.value)}
             >
-                {availableSequences.map(s => (
-                    <option key={s.id} value={s.id}>Seq {s.id} ({s.frame_count} frames)</option>
-                ))}
+              {availableSequences.map(s => (
+                <option key={s.id} value={s.id}>Seq {s.id} ({s.frame_count} frames)</option>
+              ))}
             </select>
-        )}
-
-        {mode === 'live' && (
             <button
-                onClick={() => setConnected(!connected)}
-                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${connected ? 'bg-destructive text-destructive-foreground' : 'bg-primary text-primary-foreground'}`}
+              onClick={() => setConnected(!connected)}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${connected ? 'bg-destructive text-destructive-foreground' : 'bg-primary text-primary-foreground'}`}
             >
-                {connected ? 'Disconnect' : 'Connect'}
+              {connected ? 'Disconnect' : 'Connect'}
             </button>
-        )}
-
-        <button
-          onClick={toggleTheme}
-          className="relative flex gap-2 w-fit h-fit rounded-full bg-muted transition-colors p-2 cursor-pointer ml-2"
-          aria-label="Toggle Theme"
-        >
-          <Sun className="w-4 h-4 text-zinc-400 dark:text-zinc-600" />
-          <Moon className="w-4 h-4 text-zinc-400 dark:text-zinc-600" />
-          <div
-            className={`absolute left-1.25 top-1.25 w-5.5 h-5.5 rounded-full bg-zinc-900 dark:bg-white shadow-sm transition-transform duration-300 ease-in-out flex items-center justify-center ${isDark ? 'translate-x-6' : 'translate-x-0'
-              }`}
-          />
-        </button>
-        <Button
-          onClick={togglePlay}
-          variant='default'
-          className={"rounded-full px-3"}
-        >
-          {playing ? 'Pause' : 'Play'}
-        </Button>
+          </div>
+        </div>
       </div>
 
       {/* Main Content */}
@@ -389,24 +366,24 @@ export default function LidarViewer({ onFrameChange }: Props) {
         {/* Metrics Section */}
         <div className="w-full max-w-6xl mx-auto relative">
           <div className="w-[calc(100%-64px)] h-10 bg-muted-foreground/70 backdrop-blur-lg rounded-full absolute -top-3 left-8 z-1" />
-          <div className="relative flex items-center gap-4 bg-card/70 backdrop-blur-lg z-10 rounded-full border border-border px-8 py-3">
-            <div className="min-w-30 grow">
-              <div className="text-muted-foreground mb-1 text-xs">FPS</div>
+          <div className="relative flex not-md:flex-col items-center gap-4 bg-card/70 backdrop-blur-lg z-10 rounded-4xl md:rounded-full border border-border px-8 py-3">
+            <div className="not-md:w-full md:min-w-30 grow not-md:flex items-center justify-between gap-3">
+              <div className="text-muted-foreground mb-1 md:text-xs">FPS</div>
               <div className="text-lg">{fps}</div>
             </div>
-            <div className="h-14 w-px bg-border"></div>
-            <div className="min-w-30 grow">
-              <div className="text-muted-foreground mb-1 text-xs">Frame</div>
+            <div className="not-md:hidden h-14 w-px bg-border"></div>
+            <div className="not-md:w-full md:min-w-30 grow not-md:flex items-center justify-between gap-3">
+              <div className="text-muted-foreground mb-1 md:text-xs">Frame</div>
               <div className="text-lg">{currentFrameId}</div>
             </div>
-            <div className="h-14 w-px bg-border"></div>
-            <div className="min-w-30 grow">
-              <div className="text-muted-foreground mb-1 text-xs">Speed</div>
+            <div className="not-md:hidden h-14 w-px bg-border"></div>
+            <div className="not-md:w-full md:min-w-30 grow not-md:flex items-center justify-between gap-3">
+              <div className="text-muted-foreground mb-1 md:text-xs">Speed</div>
               <div className="text-lg">{currentSpeed} km/h</div>
             </div>
-            <div className="h-14 w-px bg-border"></div>
-            <div className="min-w-30 grow">
-              <div className="text-muted-foreground mb-1 text-xs">Objects Detected</div>
+            <div className="not-md:hidden h-14 w-px bg-border"></div>
+            <div className="not-md:w-full md:min-w-30 grow not-md:flex items-center justify-between gap-3">
+              <div className="text-muted-foreground mb-1 md:text-xs">Objects Detected</div>
               <div className="text-lg">{currentObjects}</div>
             </div>
           </div>
@@ -423,11 +400,11 @@ export default function LidarViewer({ onFrameChange }: Props) {
             </div>
           </div>
 
-          <div className="flex gap-3 justify-center">
-            <div className="relative grow h-140 bg-background rounded-md overflow-hidden select-none">
+          <div className="flex flex-col md:flex-row gap-3 justify-center">
+            <div className="relative w-full md:grow h-80 md:h-140 bg-background rounded-md overflow-hidden select-none">
               <LidarScene data={data} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} />
             </div>
-            <div className="w-74 h-fit bg-card rounded-md">
+            <div className="w-full md:w-74 h-fit bg-card rounded-md shrink-0">
               <MetricsHUD
                 metrics={mode === 'simulated' ? frame.metrics : {
                   objects_detected: currentObjects,
@@ -451,12 +428,12 @@ export default function LidarViewer({ onFrameChange }: Props) {
               2.5D · Variable Resolution Grid
             </div>
           </div>
-          <div className="flex gap-3 justify-center">
-            <div className="w-74 h-fit bg-card rounded-md">
+          <div className="flex flex-col md:flex-row gap-3 justify-center">
+            <div className="w-full md:w-74 h-fit bg-card rounded-md shrink-0">
               <MemorySavingsHUD gridResult={simulatedGridResult} mode={mode} liveFrame={liveFrame} />
             </div>
-            <div className="w-full grow space-y-3">
-              <div className="relative w-full h-140 bg-background rounded-md overflow-hidden">
+            <div className="w-full grow space-y-3 min-w-0">
+              <div className="relative w-full h-80 md:h-140 bg-background rounded-md overflow-hidden">
                 <SemanticMap2D data={data} frameIdx={frameIdx} mode={mode} liveFrame={liveFrame} />
               </div>
               <SemanticLegend />
@@ -474,7 +451,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
               3D · Height Gradient
             </div>
           </div>
-          <div className="relative w-full h-140 bg-background rounded-md overflow-hidden">
+          <div className="relative w-full h-80 md:h-140 bg-background rounded-md overflow-hidden">
             <ElevationMap3D data={data} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} />
           </div>
         </div>
@@ -490,7 +467,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
                 2D · Elevation Slice / Classification
               </div>
             </div>
-            <div className="relative w-full h-110 overflow-hidden">
+            <div className="relative w-full h-60 md:h-110 overflow-hidden">
               <ElevationSlice data={data} frameIdx={frameIdx} />
             </div>
           </div>

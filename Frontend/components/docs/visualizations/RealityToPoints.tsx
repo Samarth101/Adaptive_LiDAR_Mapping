@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Environment } from '@react-three/drei';
 import * as THREE from 'three';
+import { useDocsAnimation } from '@/components/docs/DocsAnimationContext';
 
 // 1. Component to load a GLTF model
 function Model({ path, position, rotation, scale }: { path: string, position: [number, number, number], rotation: [number, number, number], scale: number }) {
@@ -20,17 +21,17 @@ function PointCloud({ url, visible }: { url: string, visible: boolean }) {
     fetch(url)
       .then((res) => res.arrayBuffer())
       .then((buffer) => {
-        // nuScenes .bin files have 5 float32 per point: [x, y, z, intensity, ring_index]
+        // KITTI .bin files have 4 float32 per point: [x, y, z, reflectance]
         const data = new Float32Array(buffer);
-        const numPoints = data.length / 5;
+        const numPoints = data.length / 4;
         const positions = new Float32Array(numPoints * 3);
         const colors = new Float32Array(numPoints * 3);
 
         for (let i = 0; i < numPoints; i++) {
-          const x = data[i * 5 + 0];
-          const y = data[i * 5 + 1];
-          const z = data[i * 5 + 2];
-          const intensity = data[i * 5 + 3];
+          const x = data[i * 4 + 0];
+          const y = data[i * 4 + 1];
+          const z = data[i * 4 + 2];
+          const intensity = data[i * 4 + 3];
 
           positions[i * 3 + 0] = x;
           positions[i * 3 + 1] = y;
@@ -62,16 +63,17 @@ function PointCloud({ url, visible }: { url: string, visible: boolean }) {
 
 export default function RealityToPoints() {
   const [showPoints, setShowPoints] = useState(false);
+  const { isPaused } = useDocsAnimation();
 
   return (
-    <div className="flex-1 bg-slate-900 rounded-xl border border-slate-800 overflow-hidden relative shadow-2xl flex flex-col">
+    <div className="flex-1 bg-card rounded-xl border border-border overflow-hidden relative shadow-2xl flex flex-col">
       <div className="absolute top-4 right-4 z-10">
         <button 
           onClick={() => setShowPoints(!showPoints)}
-          className={`px-6 py-2 rounded-full font-bold transition-all duration-300 ${
+          className={`px-6 py-2 rounded-full font-normal transition-all duration-300 ${
             showPoints 
-              ? 'bg-cyan-500 text-slate-950 shadow-[0_0_15px_rgba(6,182,212,0.5)]' 
-              : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-600'
+              ? 'bg-primary text-slate-950 shadow-[0_0_15px_rgba(6,182,212,0.5)]' 
+              : 'bg-muted text-muted-foreground hover:bg-muted-foreground/20 border border-border/80'
           }`}
         >
           {showPoints ? 'Return to Reality' : 'Reveal what LiDAR sees →'}
@@ -80,7 +82,7 @@ export default function RealityToPoints() {
 
       <div className="flex-1 relative">
         <Canvas dpr={[1, 2]} camera={{ position: [0, 10, 25], fov: 45 }}>
-          <color attach="background" args={['#020617']} />
+          <color attach="background" args={['#252525']} />
           <ambientLight intensity={0.5} />
           <directionalLight position={[10, 10, 5]} intensity={1} />
           
@@ -88,7 +90,7 @@ export default function RealityToPoints() {
             enablePan={true}
             enableZoom={true}
             enableRotate={true}
-            autoRotate={!showPoints}
+            autoRotate={!showPoints && !isPaused}
             autoRotateSpeed={0.5}
             target={[0, 0, 0]}
           />
@@ -97,10 +99,10 @@ export default function RealityToPoints() {
             {/* Ground Plane */}
             <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1, 0]}>
               <planeGeometry args={[100, 100]} />
-              <meshStandardMaterial color="#1e293b" />
+              <meshStandardMaterial color="#343434" />
             </mesh>
             
-            <gridHelper args={[100, 20, '#334155', '#0f172a']} position={[0, -0.99, 0]} />
+            <gridHelper args={[100, 20, '#4d4d4d', '#2b2b2b']} position={[0, -0.99, 0]} />
 
             {/* Ego Vehicle (basic_car) in center */}
             <Model 
@@ -130,12 +132,12 @@ export default function RealityToPoints() {
         </Canvas>
       </div>
 
-      <div className="absolute bottom-4 left-4 right-4 z-10 bg-slate-900/80 backdrop-blur-md border border-slate-800 p-4 rounded-lg flex justify-between items-center">
+      <div className="absolute bottom-4 left-4 right-4 z-10 bg-card/80 backdrop-blur-md border border-border p-4 rounded-lg flex justify-between items-center">
         <div>
-          <h3 className="text-xl font-bold text-cyan-400">
+          <h3 className="text-xl font-normal text-primary">
             {showPoints ? '3D Point Cloud Representation' : 'The Real World'}
           </h3>
-          <p className="text-slate-400 text-sm mt-1 max-w-2xl">
+          <p className="text-muted-foreground text-sm mt-1 max-w-2xl">
             {showPoints 
               ? 'LiDAR does not "see" cars or trees. It receives thousands of laser returns measured as [x, y, z, intensity] coordinates. This unstructured data is what our perception pipeline must interpret.'
               : 'Autonomous vehicles operate in complex, unstructured real-world environments filled with dynamic obstacles, pedestrians, and irregular terrain.'}

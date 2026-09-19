@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Geist, Caveat } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
+import { ThemeProvider } from "@/components/theme/ThemeProvider";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -25,7 +26,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={cn("dark font-sans", geist.variable, caveat.variable)}>
       <head>
       </head>
-      <body className="font-sans">{children}</body>
+      <body className="font-sans">
+        <ThemeProvider>
+          {children}
+        </ThemeProvider>
+      </body>
     </html>
   );
 }

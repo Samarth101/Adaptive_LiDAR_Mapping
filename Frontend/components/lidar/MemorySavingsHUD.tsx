@@ -41,11 +41,11 @@ export default memo(function MemorySavingsHUD({ gridResult, mode, liveFrame }: P
   }
 
   return (
-    <div className="h-fit w-full text-sm p-4 justify-center text-foreground font-bold">
-      <div className="text-emerald-500 mb-1.5 text-base">
+    <div className="h-fit w-full text-sm p-4 justify-center text-foreground font-normal">
+      <div className="text-primary mb-1.5 text-sm">
         {memorySavingsPct.toFixed(2)}% memory savings vs raw point cloud
       </div>
-      <div className="text-emerald-500/80 mb-2 text-xs font-mono font-normal">
+      <div className="text-muted-foreground mb-2 text-xs font-mono font-normal">
         Math: 100 - ({totalCount} cells / {rawCount} raw pts) * 100
       </div>
       <div className="text-muted-foreground mb-6 text-xs font-normal">
@@ -56,15 +56,15 @@ export default memo(function MemorySavingsHUD({ gridResult, mode, liveFrame }: P
           <span>Total cells projected</span>
           <span>{totalCount} cells</span>
         </div>
-        <div className="flex justify-between items-center text-cyan-400">
+        <div className="flex justify-between items-center text-chart-1">
           <span>Near 5cm (0-10m)</span>
           <span>{nearCount} cells</span>
         </div>
-        <div className="flex justify-between items-center text-amber-500">
+        <div className="flex justify-between items-center text-chart-2">
           <span>Mid 10-25cm (10-60m)</span>
           <span>{midCount} cells</span>
         </div>
-        <div className="flex justify-between items-center text-red-400">
+        <div className="flex justify-between items-center text-chart-3">
           <span>Far 50cm (60-100m)</span>
           <span>{farCount} cells</span>
         </div>

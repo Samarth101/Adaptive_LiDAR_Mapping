@@ -62,16 +62,7 @@ body {
 }
 
 ::-webkit-scrollbar {
-  width: 4px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--muted-foreground);
-  border-radius: 4px;
+  display: none;
 }
 
 @theme inline {
@@ -163,4 +154,8 @@ body {
   html {
     @apply font-sans;
   }
+}
+
+.pause-animations * {
+  animation-play-state: paused !important;
 }

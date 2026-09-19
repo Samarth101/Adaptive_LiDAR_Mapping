@@ -14,10 +14,10 @@ export default function PipelineStages() {
   ];
 
   return (
-    <div className="flex-1 bg-slate-950 rounded-xl border border-slate-800 flex flex-col overflow-hidden shadow-2xl relative">
+    <div className="flex-1 bg-background rounded-xl border border-border flex flex-col overflow-hidden shadow-2xl relative">
       
       {/* Top Navigation Bar */}
-      <div className="flex w-full bg-slate-900 border-b border-slate-800">
+      <div className="flex w-full bg-card border-b border-border">
         {stages.map((stage) => {
           const Icon = stage.icon;
           const isActive = activeStage === stage.id;
@@ -26,11 +26,11 @@ export default function PipelineStages() {
               key={stage.id}
               onClick={() => setActiveStage(stage.id)}
               className={`flex-1 p-4 flex flex-col items-center justify-center transition-all duration-300 border-b-2 ${
-                isActive ? 'border-cyan-500 bg-cyan-500/5 text-cyan-400' : 'border-transparent text-slate-500 hover:bg-slate-800/50 hover:text-slate-300'
+                isActive ? 'border-primary bg-primary/5 text-primary' : 'border-transparent text-muted-foreground/70 hover:bg-muted/50 hover:text-muted-foreground'
               }`}
             >
               <Icon className="w-6 h-6 mb-2" />
-              <span className="font-bold text-sm">Stage {stage.id}</span>
+              <span className="font-normal text-sm">Stage {stage.id}</span>
               <span className="text-xs mt-1 text-center max-w-[120px] leading-tight">{stage.name}</span>
             </button>
           );
@@ -38,27 +38,27 @@ export default function PipelineStages() {
       </div>
 
       {/* Main Visualization Area */}
-      <div className="flex-1 relative flex items-center justify-center bg-[#020617] overflow-hidden p-8">
+      <div className="flex-1 relative flex items-center justify-center bg-background overflow-hidden p-8">
         
         {/* Info Box */}
         <div className="absolute top-6 left-6 z-20 max-w-sm">
-          <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700 p-5 rounded-lg shadow-xl">
-            <h4 className="text-cyan-400 font-bold mb-2">{stages[activeStage - 1].name}</h4>
-            <p className="text-slate-300 text-sm">{stages[activeStage - 1].desc}</p>
+          <div className="bg-card/90 backdrop-blur-md border border-border/50 p-5 rounded-lg shadow-xl">
+            <h4 className="text-primary font-normal mb-2">{stages[activeStage - 1].name}</h4>
+            <p className="text-muted-foreground text-sm">{stages[activeStage - 1].desc}</p>
           </div>
         </div>
 
         {/* Abstract Visualization container */}
-        <div className="relative w-full max-w-3xl aspect-video rounded-xl border border-slate-800 bg-slate-900/50 flex items-center justify-center perspective-[1000px]">
+        <div className="relative w-full max-w-3xl aspect-video rounded-xl border border-border bg-card/50 flex items-center justify-center perspective-[1000px]">
           
           <div className={`relative w-96 h-96 transition-all duration-700 transform-style-3d ${
             activeStage >= 4 ? 'rotate-x-60 scale-y-50' : 'rotate-x-0'
           }`}>
             
             {/* Base grid that appears in stage 4 */}
-            <div className={`absolute inset-0 border border-slate-700 bg-slate-950 transition-opacity duration-1000 ${
+            <div className={`absolute inset-0 border border-border/50 bg-background transition-opacity duration-1000 ${
               activeStage >= 4 ? 'opacity-100' : 'opacity-0'
-            }`} style={{ backgroundSize: '20px 20px', backgroundImage: 'linear-gradient(to right, #334155 1px, transparent 1px), linear-gradient(to bottom, #334155 1px, transparent 1px)' }} />
+            }`} style={{ backgroundSize: '20px 20px', backgroundImage: 'linear-gradient(to right, #4d4d4d 1px, transparent 1px), linear-gradient(to bottom, #4d4d4d 1px, transparent 1px)' }} />
 
             {/* Simulated Point Cloud / Objects */}
             {/* Object 1: Car */}
@@ -77,7 +77,7 @@ export default function PipelineStages() {
               </div>
               
               {activeStage >= 3 && (
-                <div className="absolute -top-6 bg-sky-500 text-white text-[10px] px-2 py-0.5 rounded font-bold shadow-lg">
+                <div className="absolute -top-6 bg-sky-500 text-white text-[10px] px-2 py-0.5 rounded font-normal shadow-lg">
                   CAR [ID: 3]
                 </div>
               )}

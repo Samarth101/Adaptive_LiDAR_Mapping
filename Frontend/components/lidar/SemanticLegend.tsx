@@ -26,22 +26,22 @@ export default memo(function SemanticLegend() {
   );
 
   return (
-    <div className="w-full h-fit bg-card rounded-md p-4 text-sm flex flex-col gap-3">
-      <div className="flex items-center gap-4">
-        <div className="text-muted-foreground text-sm">Terrain:</div>
-        <div className="flex gap-3">
+    <div className="w-full h-fit bg-card rounded-md p-4 text-sm flex flex-col gap-3 font-normal">
+      <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
+        <div className="text-muted-foreground text-sm shrink-0">Terrain:</div>
+        <div className="flex flex-wrap gap-2 md:gap-3">
           {legendItems.map((item, i) => <Item key={i} {...item} />)}
         </div>
       </div>
-      <div className="flex items-center gap-4">
-        <div className="text-muted-foreground text-sm">Static Obstacles:</div>
-        <div className="flex gap-3">
+      <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
+        <div className="text-muted-foreground text-sm shrink-0">Static Obstacles:</div>
+        <div className="flex flex-wrap gap-2 md:gap-3">
           {staticObjs.map((item, i) => <Item key={i} {...item} />)}
         </div>
       </div>
-      <div className="flex items-center gap-4">
-        <div className="text-muted-foreground text-sm">Dynamic Objects:</div>
-        <div className="flex gap-3">
+      <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
+        <div className="text-muted-foreground text-sm shrink-0">Dynamic Objects:</div>
+        <div className="flex flex-wrap gap-2 md:gap-3">
           {dynamicObjs.map((item, i) => <Item key={i} {...item} />)}
         </div>
       </div>

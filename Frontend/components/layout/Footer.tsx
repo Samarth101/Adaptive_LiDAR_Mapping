@@ -1,5 +1,6 @@
 import { Globe, Mail, ArrowUpRight } from 'lucide-react';
 import Image from 'next/image';
+import Link from 'next/link';
 
 export default function Footer() {
   // Placeholder team members - you can update their names and roles!
@@ -29,10 +30,13 @@ export default function Footer() {
               <a href="https://github.com/Samarth101/Adaptive_LiDAR_Mapping" target="_blank" rel="noreferrer" className="w-fit h-fit rounded-full">
                 <Image src="/github.svg" alt="GitHub" width={20} height={20} className="dark:invert opacity-70 hover:opacity-100 transition-opacity" />
               </a>
-              <div className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground cursor-pointer underline underline-offset-4 decoration-muted-foreground/50 hover:decoration-foreground">
+              <Link
+                href={"/docs"}
+                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground cursor-pointer underline underline-offset-4 decoration-muted-foreground/50 hover:decoration-foreground"
+              >
                 View Docs
                 <ArrowUpRight size={14} />
-              </div>
+              </Link>
             </div>
           </div>
 
@@ -41,7 +45,7 @@ export default function Footer() {
             <h4 className="text-xs text-muted-foreground mb-6 font-semibold tracking-wider">
               THE TEAM
             </h4>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-8 gap-x-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-8 gap-x-4">
               {teamMembers.map((member, i) => (
                 <div key={i} className="flex flex-col group cursor-default">
                   <span className="font-medium text-foreground/90 group-hover:text-primary transition-colors">
