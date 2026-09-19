@@ -1,13 +1,14 @@
-import type { FoveatedGridResult } from '../lib/foveatedGrid';
-import type { FrameData } from '../lib/binaryProtocol';
+import type { FoveatedGridResult } from '@/lib/foveatedGrid';
+import type { FrameData } from '@/lib/binaryProtocol';
 
 interface Props {
   gridResult: FoveatedGridResult | null;
   mode: 'simulated' | 'live';
   liveFrame: FrameData | null;
 }
+import { memo } from 'react';
 
-export default function MemorySavingsHUD({ gridResult, mode, liveFrame }: Props) {
+export default memo(function MemorySavingsHUD({ gridResult, mode, liveFrame }: Props) {
   let memorySavingsPct = 0;
   let nearCount = 0;
   let midCount = 0;
@@ -70,4 +71,4 @@ export default function MemorySavingsHUD({ gridResult, mode, liveFrame }: Props)
       </div>
     </div>
   );
-}
+});

@@ -1,7 +1,7 @@
 'use client';
 
 import { Separator } from '@/components/ui/separator';
-import type { FrameMetrics } from '../types/dataset';
+import type { FrameMetrics } from '@/types/dataset';
 
 interface Props {
   metrics: { objects_detected: number };
@@ -20,7 +20,9 @@ function Bar({ value, max, colorClass }: { value: number; max: number; colorClas
   );
 }
 
-export default function MetricsHUD({ metrics, fps, memorySavingsPct, frameId, mode }: Props) {
+import { memo } from 'react';
+
+export default memo(function MetricsHUD({ metrics, fps, memorySavingsPct, frameId, mode }: Props) {
   const fpsLabel = mode === 'live' ? 'Processing FPS' : 'Render FPS';
   const fpsDisplay = mode === 'live' ? fps.toFixed(2) : fps.toFixed(0);
   return (
@@ -36,7 +38,7 @@ export default function MetricsHUD({ metrics, fps, memorySavingsPct, frameId, mo
       </div>
     </div>
   );
-}
+});
 
 function Row({ label, value, valueClass }: { label: string; value: string; valueClass: string }) {
   return (

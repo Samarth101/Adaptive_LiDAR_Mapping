@@ -5,9 +5,9 @@ import DeckGL from '@deck.gl/react';
 import { PolygonLayer } from '@deck.gl/layers';
 import Map from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import type { DemoData } from '../types/dataset';
-import { buildFoveatedGrid } from '../lib/foveatedGrid';
-import type { FrameData } from '../lib/binaryProtocol';
+import type { DemoData } from '@/types/dataset';
+import { buildFoveatedGrid } from '@/lib/foveatedGrid';
+import type { FrameData } from '@/lib/binaryProtocol';
 
 // Convert meters to approx degrees at equator (for deck.gl)
 const M_TO_DEG = 1 / 111320;

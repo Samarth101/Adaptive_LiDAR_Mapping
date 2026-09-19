@@ -13,7 +13,7 @@
  * Each cell's semantic  = dominant classification of those points (majority vote).
  */
 
-import type { LidarPoint, DetectedObject } from '../types/dataset';
+import type { LidarPoint, DetectedObject } from '@/types/dataset';
 
 // -- Zone boundaries (metres from ego) ----------------------------------------
 // PS Requirement: high resolution within a 10m radius, decreasing up to a 100m radius

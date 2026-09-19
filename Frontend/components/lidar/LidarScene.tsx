@@ -1,15 +1,15 @@
 'use client';
 
-import { Suspense, useRef, useMemo, useState, useEffect } from 'react';
+import { Suspense, useRef, useMemo, useState, useEffect, memo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
-import { ErrorBoundary } from './ErrorBoundary';
-import type { DemoData, Frame, LidarPoint } from '../types/dataset';
-import { OBJ_TYPE_COLORS, getObjectClass } from '../lib/foveatedGrid';
-import { LIDAR_RGB } from '../lib/classificationData';
-import type { FrameData } from '../lib/binaryProtocol';
+import { ErrorBoundary } from '@/components/lidar/ErrorBoundary';
+import type { DemoData, Frame, LidarPoint } from '@/types/dataset';
+import { OBJ_TYPE_COLORS, getObjectClass } from '@/lib/foveatedGrid';
+import { LIDAR_RGB } from '@/lib/classificationData';
+import type { FrameData } from '@/lib/binaryProtocol';
 
 // ─── Coordinate mapping ───────────────────────────────────────────────────────
 function d2t(p: readonly [number, number, number]): [number, number, number] {
@@ -289,14 +289,14 @@ function GLTFCar({ carPosRef, headingRef }: {
 useGLTF.preload('/car.glb');
 
 const MODEL_MAP: Record<string, { path: string, rotation: [number, number, number], yOffset: number }> = {
-  'car': { path: '/explorer_assests/basic_car.glb', rotation: [0, Math.PI, 0], yOffset: 0 },
-  'truck': { path: '/explorer_assests/auto.glb', rotation: [0, Math.PI / 2, 0], yOffset: -0.5 },
-  'person': { path: '/explorer_assests/person.glb', rotation: [0, 0, 0], yOffset: -0.5 },
-  'bicycle': { path: '/explorer_assests/bicycle.glb', rotation: [0, -Math.PI / 2, 0], yOffset: 0 },
-  'motorcycle': { path: '/explorer_assests/motorcycle.glb', rotation: [0, -Math.PI / 2, 0], yOffset: 0 },
-  'bicyclist': { path: '/explorer_assests/bicycle.glb', rotation: [0, -Math.PI / 2, 0], yOffset: 0 },
-  'motorcyclist': { path: '/explorer_assests/motorcycle.glb', rotation: [0, -Math.PI / 2, 0], yOffset: 0 },
-  'other-vehicle': { path: '/explorer_assests/auto.glb', rotation: [0, Math.PI / 2, 0], yOffset: -0.5 }
+  'car': { path: '/explorer-assets/basic_car.glb', rotation: [0, Math.PI, 0], yOffset: 0 },
+  'truck': { path: '/explorer-assets/auto.glb', rotation: [0, Math.PI / 2, 0], yOffset: -0.5 },
+  'person': { path: '/explorer-assets/person.glb', rotation: [0, 0, 0], yOffset: -0.5 },
+  'bicycle': { path: '/explorer-assets/bicycle.glb', rotation: [0, -Math.PI / 2, 0], yOffset: 0 },
+  'motorcycle': { path: '/explorer-assets/motorcycle.glb', rotation: [0, -Math.PI / 2, 0], yOffset: 0 },
+  'bicyclist': { path: '/explorer-assets/bicycle.glb', rotation: [0, -Math.PI / 2, 0], yOffset: 0 },
+  'motorcyclist': { path: '/explorer-assets/motorcycle.glb', rotation: [0, -Math.PI / 2, 0], yOffset: 0 },
+  'other-vehicle': { path: '/explorer-assets/auto.glb', rotation: [0, Math.PI / 2, 0], yOffset: -0.5 }
 };
 
 Object.values(MODEL_MAP).forEach(info => useGLTF.preload(info.path));
@@ -506,7 +506,7 @@ function Scene({ data, frameIdxRef, mode, liveFrame, visualMode }: {
   );
 }
 
-export default function LidarScene({ data, frameIdxRef, mode, liveFrame, visualMode }: {
+export default memo(function LidarScene({ data, frameIdxRef, mode, liveFrame, visualMode }: {
   data: DemoData;
   frameIdxRef: React.RefObject<number>;
   mode: 'simulated' | 'live';
@@ -515,6 +515,7 @@ export default function LidarScene({ data, frameIdxRef, mode, liveFrame, visualM
 }) {
   return (
     <Canvas
+      dpr={[1, 2]}
       shadows={{ type: THREE.PCFShadowMap }}
       camera={{ position: [-18, 14, 16], fov: 55, near: 0.1, far: 500 }}
       gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.1 }}
@@ -525,4 +526,4 @@ export default function LidarScene({ data, frameIdxRef, mode, liveFrame, visualM
       </Suspense>
     </Canvas>
   );
-}
+});

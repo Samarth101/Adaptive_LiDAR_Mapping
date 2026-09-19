@@ -1,14 +1,14 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, memo } from 'react';
 import ReactECharts from 'echarts-for-react';
-import type { DemoData } from '../types/dataset';
-import { OBJ_TYPE_COLORS, NEAR_RADIUS, MID_RADIUS, getObjectClass } from '../lib/foveatedGrid';
+import type { DemoData } from '@/types/dataset';
+import { OBJ_TYPE_COLORS, NEAR_RADIUS, MID_RADIUS, getObjectClass } from '@/lib/foveatedGrid';
 
 interface Props { data: DemoData }
 interface BinEntry { count: number; totalConf: number }
 
-export default function AccuracyChart({ data }: Props) {
+export default memo(function AccuracyChart({ data }: Props) {
   const [isDark, setIsDark] = useState(true);
 
   useEffect(() => {
@@ -174,4 +174,4 @@ export default function AccuracyChart({ data }: Props) {
       />
     </div>
   );
-}
+});

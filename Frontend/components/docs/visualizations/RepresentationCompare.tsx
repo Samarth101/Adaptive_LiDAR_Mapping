@@ -48,8 +48,8 @@ function PointCloudAnimated({ url, mode }: { url: string, mode: RepMode }) {
   return (
     <points ref={pointsRef} visible={mode === '3D' || mode === '2D'}>
       <bufferGeometry>
-        <bufferAttribute attach="attributes-position" count={pointsData.positions.length / 3} array={pointsData.positions} itemSize={3} />
-        <bufferAttribute attach="attributes-color" count={pointsData.colors.length / 3} array={pointsData.colors} itemSize={3} />
+        <bufferAttribute attach="attributes-position" args={[pointsData.positions, 3]} />
+        <bufferAttribute attach="attributes-color" args={[pointsData.colors, 3]} />
       </bufferGeometry>
       <pointsMaterial size={0.15} vertexColors transparent opacity={0.7} />
     </points>
@@ -130,7 +130,7 @@ export default function RepresentationCompare() {
       </div>
 
       <div className="flex-1 relative">
-        <Canvas camera={{ position: [0, 15, 20], fov: 50 }}>
+        <Canvas dpr={[1, 2]} camera={{ position: [0, 15, 20], fov: 50 }}>
           <color attach="background" args={['#020617']} />
           <ambientLight intensity={0.5} />
           <directionalLight position={[10, 10, 5]} intensity={1} />
@@ -147,7 +147,7 @@ export default function RepresentationCompare() {
 
           {/* Render the point cloud for 3D/2D views (Z gets squashed for 2D via react-spring) */}
           <group rotation={[-Math.PI / 2, 0, 0]}>
-            <PointCloudAnimated url="/explorer_assests/n008-2018-08-01-15-16-36-0400__LIDAR_TOP__1533151603547590.pcd.bin" mode={mode} />
+            <PointCloudAnimated url="/explorer-assets/n008-2018-08-01-15-16-36-0400__LIDAR_TOP__1533151603547590.pcd.bin" mode={mode} />
           </group>
 
           {/* Render the 2.5D grid representation */}

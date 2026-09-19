@@ -2,14 +2,14 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
-import RealityToPoints from '../components/explorer/visualizations/RealityToPoints';
-import RepresentationCompare from '../components/explorer/visualizations/RepresentationCompare';
-import UniformVsAdaptive from '../components/explorer/visualizations/UniformVsAdaptive';
+import RealityToPoints from '@/components/docs/visualizations/RealityToPoints';
+import RepresentationCompare from '@/components/docs/visualizations/RepresentationCompare';
+import UniformVsAdaptive from '@/components/docs/visualizations/UniformVsAdaptive';
 
-import CellInspector from '../components/explorer/visualizations/CellInspector';
-import PipelineStages from '../components/explorer/visualizations/PipelineStages';
-import ArchitectureDiagram from '../components/explorer/visualizations/ArchitectureDiagram';
-import ExperimentLab from '../components/explorer/visualizations/ExperimentLab';
+import CellInspector from '@/components/docs/visualizations/CellInspector';
+import PipelineStages from '@/components/docs/visualizations/PipelineStages';
+import ArchitectureDiagram from '@/components/docs/visualizations/ArchitectureDiagram';
+import ExperimentLab from '@/components/docs/visualizations/ExperimentLab';
 
 const sections = [
   { id: '01-sensor', title: '01 Sensor', label: 'From Reality to Points' },

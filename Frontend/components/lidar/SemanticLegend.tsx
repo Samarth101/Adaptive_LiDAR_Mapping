@@ -1,6 +1,7 @@
-import { CLASSIFICATION_CONFIG } from '../lib/classificationData';
+import { CLASSIFICATION_CONFIG } from '@/lib/classificationData';
+import { memo } from 'react';
 
-export default function SemanticLegend() {
+export default memo(function SemanticLegend() {
   const legendItems: { label: string; color: string }[] = [];
   const staticObjs: { label: string; color: string }[] = [];
   const dynamicObjs: { label: string; color: string }[] = [];
@@ -46,4 +47,4 @@ export default function SemanticLegend() {
       </div>
     </div>
   );
-}
+});

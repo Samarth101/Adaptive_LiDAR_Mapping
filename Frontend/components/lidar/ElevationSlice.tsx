@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { DemoData } from '../types/dataset';
-import { getObjColor } from '../lib/foveatedGrid';
-import AccuracyChart from './AccuracyChart';
+import type { DemoData } from '@/types/dataset';
+import { getObjColor } from '@/lib/foveatedGrid';
+import AccuracyChart from '@/components/lidar/AccuracyChart';
 
 interface Props { data: DemoData; frameIdx: number }
 

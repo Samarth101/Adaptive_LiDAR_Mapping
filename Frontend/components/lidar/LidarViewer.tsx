@@ -1,24 +1,24 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import type { DemoData, Frame } from '../types/dataset';
-import { buildFoveatedGrid } from '../lib/foveatedGrid';
+import type { DemoData, Frame } from '@/types/dataset';
+import { buildFoveatedGrid } from '@/lib/foveatedGrid';
 import dynamic from 'next/dynamic';
-import MetricsHUD from './MetricsHUD';
-import MemorySavingsHUD from './MemorySavingsHUD';
-import SemanticLegend from './SemanticLegend';
+import MetricsHUD from '@/components/lidar/MetricsHUD';
+import MemorySavingsHUD from '@/components/lidar/MemorySavingsHUD';
+import SemanticLegend from '@/components/lidar/SemanticLegend';
 import { Button, buttonVariants } from '@/components/ui/button';
-import InteractiveDotPattern from './InteractiveDotPattern';
+import InteractiveDotPattern from '@/components/layout/InteractiveDotPattern';
 import { Play, Pause, Moon, Sun, GitBranch, Settings } from 'lucide-react';
 import Image from 'next/image';
-import { deserializeBinary, FrameData } from '../lib/binaryProtocol';
-import Footer from './Footer';
+import { deserializeBinary, FrameData } from '@/lib/binaryProtocol';
+import Footer from '@/components/layout/Footer';
 
 // Dynamic imports (WebGL / canvas — client only)
-const LidarScene = dynamic(() => import('./LidarScene'), { ssr: false });
-const SemanticMap2D = dynamic(() => import('./SemanticMap2D'), { ssr: false });
-const ElevationMap3D = dynamic(() => import('./ElevationMap3D'), { ssr: false });
-const ElevationSlice = dynamic(() => import('./ElevationSlice'), { ssr: false });
+const LidarScene = dynamic(() => import('@/components/lidar/LidarScene'), { ssr: false });
+const SemanticMap2D = dynamic(() => import('@/components/lidar/SemanticMap2D'), { ssr: false });
+const ElevationMap3D = dynamic(() => import('@/components/lidar/ElevationMap3D'), { ssr: false });
+const ElevationSlice = dynamic(() => import('@/components/lidar/ElevationSlice'), { ssr: false });
 
 interface Props {
   onFrameChange: (frame: Frame) => void;
@@ -279,7 +279,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
             </button>
         </div>
 
-        <a href="/explorer" className="px-4 py-1.5 rounded-full text-sm font-medium transition-colors border border-cyan-500/50 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 ml-2">
+        <a href="/docs" className="px-4 py-1.5 rounded-full text-sm font-medium transition-colors border border-cyan-500/50 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 ml-2">
             Explorer / Docs
         </a>
 

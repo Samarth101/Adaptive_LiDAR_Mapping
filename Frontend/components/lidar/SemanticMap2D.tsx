@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useMemo } from 'react';
-import type { DemoData } from '../types/dataset';
-import { buildFoveatedGrid, SEMANTIC_COLORS_HEX } from '../lib/foveatedGrid';
-import type { FrameData } from '../lib/binaryProtocol';
+import { useEffect, useRef, useMemo, memo } from 'react';
+import type { DemoData } from '@/types/dataset';
+import { buildFoveatedGrid, SEMANTIC_COLORS_HEX } from '@/lib/foveatedGrid';
+import type { FrameData } from '@/lib/binaryProtocol';
 
 const BACKEND_CLASS_NAMES: Record<number, string> = {
   0: "unlabeled", 1: "car", 2: "bicycle", 3: "motorcycle", 4: "truck", 5: "other-vehicle",
@@ -19,7 +19,7 @@ interface Props {
   liveFrame: FrameData | null;
 }
 
-export default function SemanticMap2D({ data, frameIdx, mode, liveFrame }: Props) {
+export default memo(function SemanticMap2D({ data, frameIdx, mode, liveFrame }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
   const gridResult = useMemo(() => {
@@ -216,4 +216,4 @@ export default function SemanticMap2D({ data, frameIdx, mode, liveFrame }: Props
       />
     </div>
   );
-}
+});

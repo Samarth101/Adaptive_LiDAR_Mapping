@@ -79,7 +79,7 @@ export default function RealityToPoints() {
       </div>
 
       <div className="flex-1 relative">
-        <Canvas camera={{ position: [0, 10, 25], fov: 45 }}>
+        <Canvas dpr={[1, 2]} camera={{ position: [0, 10, 25], fov: 45 }}>
           <color attach="background" args={['#020617']} />
           <ambientLight intensity={0.5} />
           <directionalLight position={[10, 10, 5]} intensity={1} />
@@ -104,26 +104,26 @@ export default function RealityToPoints() {
 
             {/* Ego Vehicle (basic_car) in center */}
             <Model 
-              path="/explorer_assests/basic_car.glb" 
+              path="/explorer-assets/basic_car.glb" 
               position={[0, -1, 0]} 
               rotation={[0, Math.PI / 2, 0]} 
               scale={1} 
             />
 
             {/* Surrounding environment objects */}
-            <Model path="/explorer_assests/tree.glb" position={[8, -1, -5]} rotation={[0, 0, 0]} scale={2} />
-            <Model path="/explorer_assests/tree.glb" position={[-10, -1, 4]} rotation={[0, 1, 0]} scale={1.8} />
+            <Model path="/explorer-assets/tree.glb" position={[8, -1, -5]} rotation={[0, 0, 0]} scale={2} />
+            <Model path="/explorer-assets/tree.glb" position={[-10, -1, 4]} rotation={[0, 1, 0]} scale={1.8} />
             
-            <Model path="/explorer_assests/person.glb" position={[4, -1, 6]} rotation={[0, -Math.PI / 4, 0]} scale={1} />
+            <Model path="/explorer-assets/person.glb" position={[4, -1, 6]} rotation={[0, -Math.PI / 4, 0]} scale={1} />
             
-            <Model path="/explorer_assests/motorcycle.glb" position={[-6, -1, -8]} rotation={[0, Math.PI / 3, 0]} scale={1} />
-            <Model path="/explorer_assests/auto.glb" position={[12, -1, 10]} rotation={[0, -Math.PI / 6, 0]} scale={1} />
-            <Model path="/explorer_assests/bicycle.glb" position={[-3, -1, 12]} rotation={[0, Math.PI / 2, 0]} scale={1} />
+            <Model path="/explorer-assets/motorcycle.glb" position={[-6, -1, -8]} rotation={[0, Math.PI / 3, 0]} scale={1} />
+            <Model path="/explorer-assets/auto.glb" position={[12, -1, 10]} rotation={[0, -Math.PI / 6, 0]} scale={1} />
+            <Model path="/explorer-assets/bicycle.glb" position={[-3, -1, 12]} rotation={[0, Math.PI / 2, 0]} scale={1} />
           </group>
 
           {/* Point Cloud View */}
           <PointCloud 
-            url="/explorer_assests/n008-2018-08-01-15-16-36-0400__LIDAR_TOP__1533151603547590.pcd.bin" 
+            url="/explorer-assets/n008-2018-08-01-15-16-36-0400__LIDAR_TOP__1533151603547590.pcd.bin" 
             visible={showPoints} 
           />
 
