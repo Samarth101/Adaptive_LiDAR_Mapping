@@ -8,9 +8,8 @@ import type { Frame } from '@/types/dataset';
 const LidarViewer = dynamic(() => import('@/components/lidar/LidarViewer'), {
   ssr: false,
   loading: () => (
-    <div className="viewer-loading">
-      <div className="loading-spinner" />
-      <p>Initialising dashboard…</p>
+    <div className="flex items-center justify-center h-screen w-screen">
+      <div className='text-foreground'>Initialising dashboard…</div>
     </div>
   ),
 });

@@ -386,9 +386,6 @@ function DetectedObjects3D({ frames, frameIdxRef, mode, liveFrame }: {
 
           objects.push(
               <group key={i} position={[tx, ty, tz]} rotation={[0, -heading, 0]}>
-                <group position={[0, -h / 2, 0]}>
-                  <GLTFModel type={typeName} />
-                </group>
                 <lineSegments>
                   <edgesGeometry args={[new THREE.BoxGeometry(l, h, w)]} />
                   <lineBasicMaterial color={color} transparent opacity={opacity} />

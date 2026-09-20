@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
-import { Pause, Play, Home, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import ThemeToggle from '@/components/theme/ThemeToggle';
 import { DocsAnimationContext } from '@/components/docs/DocsAnimationContext';
 import RealityToPoints from '@/components/docs/visualizations/RealityToPoints';
@@ -28,11 +28,24 @@ const sections = [
   { id: '10-binary', title: '10 Binary', label: 'Live Architecture' },
   { id: '11-backend', title: '11 Backend', label: 'What Does the Backend Actually Receive?' },
   { id: '12-exper', title: '12 Exper.', label: 'Experiment Lab' },
+
+  { id: '01-sensore', title: '01 Sensor', label: 'From Reality to Points' },
+  { id: '02-pointse', title: '02 Points', label: 'What Does LiDAR Actually Capture?' },
+  { id: '03-represente', title: '03 3D/2D', label: 'Same Environment. Three Representations.' },
+  { id: '04-proeblem', title: '04 Problem', label: 'Why Uniform Resolution Breaks Down' },
+  { id: '05-adapetive', title: '05 Adaptive', label: 'Our Adaptive 2.5D Approach' },
+  { id: '06-ceell', title: '06 Cell', label: 'Inside One Adaptive Cell' },
+  { id: '07-semawentic', title: '07 Semantic', label: 'How Semantics Enter the Map' },
+  { id: '08-pipeeline', title: '08 Pipeline', label: 'From Points → Objects → Terrain' },
+  { id: '09-foeveated', title: '09 Foveated', label: 'Foveated LiDAR Mapping' },
+  { id: '10-bienary', title: '10 Binary', label: 'Live Architecture' },
+  { id: '11-bacekend', title: '11 Backend', label: 'What Does the Backend Actually Receive?' },
+  { id: '12-expeer', title: '12 Exper.', label: 'Experiment Lab' },
 ];
 
 export default function ExplorerPage() {
   const [activeSection, setActiveSection] = useState('01-sensor');
-  const [isPaused, setIsPaused] = useState(false);
+  const [isPaused, setIsPaused] = useState(true);
   const sectionRefs = useRef<(HTMLElement | null)[]>([]);
 
   useEffect(() => {
@@ -59,7 +72,7 @@ export default function ExplorerPage() {
 
         {/* Global Animation Control & Header */}
         <div className="fixed top-3 right-3 w-fit z-50 pointer-events-none flex">
-          <div className="bg-card/50 backdrop-blur-xs p-2 rounded-full flex items-center gap-2 border pointer-events-auto">
+          <div className="bg-radial from-transparent from-25% to-primary/10 to-100% backdrop-blur-xs p-2 rounded-full flex items-center gap-2 border pointer-events-auto">
             <ThemeToggle />
 
             <Button
@@ -73,37 +86,39 @@ export default function ExplorerPage() {
         </div>
 
         {/* Navigation Rail */}
-        <nav className="w-full md:w-64 h-auto md:h-full bg-card border-b md:border-b-0 md:border-r border-border flex flex-col p-4 flex-shrink-0 relative z-20 shadow-sm md:shadow-xl">
-          <div className="mb-4 md:mb-8 px-2">
-            <Link href="/" className="text-primary hover:opacity-80 text-sm font-normal flex items-center transition-opacity">
-              <ArrowLeft className="w-4 h-4 mr-1.5" /> Back to dashboard
-            </Link>
-            <h1 className="text-lg md:text-xl font-normal mt-4">LumiGRID Explorer</h1>
-            <p className="text-xs text-muted-foreground mt-1">Interactive architecture lab</p>
+        <nav className="p-3 w-full md:w-68 h-auto md:h-full relative z-20">
+          <Link
+            href="/"
+            className="bg-radial from-transparent from-25% to-primary/10 to-100% w-fit backdrop-blur-xs pl-4 pr-5 py-3 rounded-full flex items-center gap-2 border shadow-sm"
+          >
+            <ArrowLeft className="w-4.5 h-4.5 mr-2" /> Back to dashboard
+          </Link>
+
+          <div className="mt-4 bg-card/50 backdrop-blur-xs p-3 border shadow-sm rounded-4xl max-h-[80vh] overflow-y-auto">
+            <div className="flex md:flex-col space-x-2 md:space-x-0 md:space-y-2">
+              {sections.map((section, _) => {
+                const isActive = activeSection === section.id;
+                return (
+                  <Link
+                    key={section.id}
+                    href={`#${section.id}`}
+                    className={`shrink-0 md:shrink-1 px-4 py-2.5 rounded-full duration-200 whitespace-nowrap truncate ${isActive
+                      ? 'bg-radial from-primary/80 from-25% to-primary to-100% text-primary-foreground'
+                      : 'text-muted-foreground bg-radial from-transparent from-25% to-primary/5 to-100%'
+                      }`}
+                  >
+                    <span className={`mr-2 ${!isActive && 'text-muted-foreground/70'}`}>
+                      {section.title.split(' ')[0]}
+                    </span>
+                    <span>
+                      {section.title.substring(section.title.indexOf(' ') + 1)}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
           </div>
 
-          <div className="flex md:flex-col overflow-x-auto md:overflow-y-auto space-x-2 md:space-x-0 md:space-y-1 pb-2 md:pb-0 hide-scrollbar">
-            {sections.map((section, _) => {
-              const isActive = activeSection === section.id;
-              return (
-                <a
-                  key={section.id}
-                  href={`#${section.id}`}
-                  className={`block px-3 py-2 rounded transition-all duration-200 md:border-l-2 whitespace-nowrap md:whitespace-normal flex-shrink-0 ${isActive
-                    ? 'md:border-primary bg-muted text-foreground font-normal md:translate-x-1'
-                    : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                    }`}
-                >
-                  <span className={`text-xs mr-2 ${isActive ? 'text-primary' : 'text-muted-foreground/70'}`}>
-                    {section.title.split(' ')[0]}
-                  </span>
-                  <span className="text-sm">
-                    {section.title.substring(section.title.indexOf(' ') + 1)}
-                  </span>
-                </a>
-              );
-            })}
-          </div>
         </nav>
 
         {/* Main Content Area */}

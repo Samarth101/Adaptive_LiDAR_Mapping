@@ -9,7 +9,7 @@ import MemorySavingsHUD from '@/components/lidar/MemorySavingsHUD';
 import SemanticLegend from '@/components/lidar/SemanticLegend';
 import { Button } from '@/components/ui/button';
 import InteractiveDotPattern from '@/components/layout/InteractiveDotPattern';
-import { BookOpen } from 'lucide-react';
+import { BookOpen, X } from 'lucide-react';
 import Image from 'next/image';
 import ThemeToggle from '@/components/theme/ThemeToggle';
 import { deserializeBinary, FrameData } from '@/lib/binaryProtocol';
@@ -42,7 +42,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const [frameIdx, setFrameIdx] = useState(0);
-  const [playing, setPlaying] = useState(true);
+  const [playing, setPlaying] = useState(false);
   const [fps, setFps] = useState(0);
   const [connected, setConnected] = useState(false);
   const [visualMode, setVisualMode] = useState<'raw' | 'cells'>('raw');
@@ -84,7 +84,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
   }, []);
 
   const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
-  const [backendErrorMsg, setBackendErrorMsg] = useState<string | null>(null);
+  const [dismissedBackendError, setDismissedBackendError] = useState(false);
 
   // Load models & sequences from backend with graceful fallback
   useEffect(() => {
@@ -106,7 +106,6 @@ export default function LidarViewer({ onFrameChange }: Props) {
             setAvailableModels(modelsData.map((m: any) => m.name));
           }
           setBackendOnline(true);
-          setBackendErrorMsg(null);
         }
 
         const resSeq = await fetch('http://localhost:8000/api/sequences');
@@ -123,7 +122,6 @@ export default function LidarViewer({ onFrameChange }: Props) {
         if (isMounted) {
           console.warn("Backend API unavailable, continuing in simulated mode:", err?.message || err);
           setBackendOnline(false);
-          setBackendErrorMsg("ML Backend Offline (http://localhost:8000)");
         }
       }
     };
@@ -248,12 +246,12 @@ export default function LidarViewer({ onFrameChange }: Props) {
       <InteractiveDotPattern />
 
       {/* Header */}
-      <div className="fixed top-3 left-3 w-fit bg-card/30 backdrop-blur-xs px-6 py-3 rounded-full z-50 border flex items-center justify-center">
+      <div className="fixed top-3 left-3 w-fit bg-radial from-transparent from-25% to-primary/10 to-100% backdrop-blur-xs px-6 py-3 rounded-full z-50 border flex items-center justify-center">
         <Image src="/logo.png" alt="Data Exploiters Logo" width={150} height={32} className="h-6 w-auto dark:invert" />
       </div>
       <div className="fixed top-3 right-3 w-fit flex flex-col items-end gap-2 z-50 pointer-events-none">
         {/* Main Right Header */}
-        <div className="bg-card/50 backdrop-blur-xs p-2 rounded-full flex items-center gap-2 border pointer-events-auto shadow-sm">
+        <div className="bg-radial from-transparent from-25% to-primary/15 to-100% backdrop-blur-xs p-2 rounded-full flex items-center gap-2 border pointer-events-auto shadow-sm">
           <Link
             href="/docs"
             className="px-3.5 py-1.5 rounded-full text-sm bg-muted flex items-center gap-1.5 text-foreground"
@@ -291,7 +289,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
         <div
           className={`transition-all duration-300 ease-out origin-top flex items-center pointer-events-auto ${mode === 'live' ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-8 pointer-events-none'}`}
         >
-          <div className="bg-card/50 backdrop-blur-xs p-2 rounded-full flex items-center gap-3 border shadow-sm">
+          <div className="bg-radial from-transparent from-25% to-primary/15 to-100% backdrop-blur-xs p-2 rounded-full flex items-center gap-3 border shadow-sm">
             <select
               className="bg-muted rounded-full px-3 py-1.5 text-sm"
               value={model}
@@ -332,36 +330,43 @@ export default function LidarViewer({ onFrameChange }: Props) {
         </div>
       </div>
 
+      {/* Backend Status Toast */}
+      {mode === 'live' && backendOnline === false && !dismissedBackendError && (
+        <div className="fixed bottom-4 right-4 z-100 animate-in slide-in-from-bottom-5 fade-in duration-300">
+          <div className="bg-radial from-transparent from-25% to-primary/10 to-100% backdrop-blur-md border border-border rounded-2xl p-3 max-w-md relative">
+            <button
+              onClick={() => setDismissedBackendError(true)}
+              className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full hover:bg-muted text-muted-foreground transition-colors"
+              aria-label="Close toast"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="space-y-2">
+              <div className="text-foreground">
+                Connection Lost
+              </div>
+              <div className="text-base text-muted-foreground">
+                We're unable to fetch real-time data. The Live Backend is currently unreachable.
+              </div>
+              <Button
+                onClick={() => {
+                  setMode('simulated')
+                  setDismissedBackendError(true)
+                }}
+                variant='default'
+                className={"mt-3 rounded-full h-10 px-3 w-full"}
+              >
+                Switch to Simulated
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content */}
       <div className="mt-20 p-6 space-y-8 max-w-340 mx-auto">
 
-        {/* Backend Status Banner */}
-        {backendOnline === false && (
-          <div className="w-full max-w-6xl mx-auto -mb-4">
-            {mode === 'live' ? (
-              <div className="p-4 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-500 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 backdrop-blur-sm">
-                <div className="text-sm">
-                  <span className="font-semibold">⚠️ ML Backend Offline: </span>
-                  Cannot connect to <code className="bg-background/60 px-1.5 py-0.5 rounded font-mono text-xs">http://localhost:8000</code>.
-                  Please start the backend with <code className="bg-background/60 px-1.5 py-0.5 rounded font-mono text-xs">python .\backend\server.py</code> to stream live data.
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setMode('simulated')}
-                  className="rounded-full border-amber-500/40 hover:bg-amber-500/20 text-xs shrink-0"
-                >
-                  Switch to Simulated
-                </Button>
-              </div>
-            ) : (
-              <div className="w-fit mx-auto px-4 py-1.5 rounded-full text-xs bg-muted/70 border border-border text-muted-foreground flex items-center gap-2 backdrop-blur-sm">
-                <span className="w-2 h-2 rounded-full bg-amber-500" />
-                <span>Backend API offline (http://localhost:8000) — Simulated mode running standalone</span>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Metrics Section */}
         <div className="w-full max-w-6xl mx-auto relative">
