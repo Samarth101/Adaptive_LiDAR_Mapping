@@ -5,48 +5,59 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import ThemeToggle from '@/components/theme/ThemeToggle';
 import { DocsAnimationContext } from '@/components/docs/DocsAnimationContext';
+
+import TheChallenge from '@/components/docs/visualizations/TheChallenge';
 import RealityToPoints from '@/components/docs/visualizations/RealityToPoints';
 import RepresentationCompare from '@/components/docs/visualizations/RepresentationCompare';
 import UniformVsAdaptive from '@/components/docs/visualizations/UniformVsAdaptive';
-
-import CellInspector from '@/components/docs/visualizations/CellInspector';
 import PipelineStages from '@/components/docs/visualizations/PipelineStages';
 import ArchitectureDiagram from '@/components/docs/visualizations/ArchitectureDiagram';
 import ExperimentLab from '@/components/docs/visualizations/ExperimentLab';
+import ProposedSolution from '@/components/docs/visualizations/ProposedSolution';
+import TechnicalMethodology from '@/components/docs/visualizations/TechnicalMethodology';
+import FeasibilityViability from '@/components/docs/visualizations/FeasibilityViability';
 import { Button } from '@/components/ui/button';
 
 const sections = [
-  { id: '01-sensor', title: '01 Sensor', label: 'From Reality to Points' },
-  { id: '02-points', title: '02 Points', label: 'What Does LiDAR Actually Capture?' },
-  { id: '03-represent', title: '03 3D/2D', label: 'Same Environment. Three Representations.' },
-  { id: '04-problem', title: '04 Problem', label: 'Why Uniform Resolution Breaks Down' },
-  { id: '05-adaptive', title: '05 Adaptive', label: 'Our Adaptive 2.5D Approach' },
-  { id: '06-cell', title: '06 Cell', label: 'Inside One Adaptive Cell' },
-  { id: '07-semantic', title: '07 Semantic', label: 'How Semantics Enter the Map' },
-  { id: '08-pipeline', title: '08 Pipeline', label: 'From Points → Objects → Terrain' },
-  { id: '09-foveated', title: '09 Foveated', label: 'Foveated LiDAR Mapping' },
-  { id: '10-binary', title: '10 Binary', label: 'Live Architecture' },
-  { id: '11-backend', title: '11 Backend', label: 'What Does the Backend Actually Receive?' },
-  { id: '12-exper', title: '12 Exper.', label: 'Experiment Lab' },
-
-  { id: '01-sensore', title: '01 Sensor', label: 'From Reality to Points' },
-  { id: '02-pointse', title: '02 Points', label: 'What Does LiDAR Actually Capture?' },
-  { id: '03-represente', title: '03 3D/2D', label: 'Same Environment. Three Representations.' },
-  { id: '04-proeblem', title: '04 Problem', label: 'Why Uniform Resolution Breaks Down' },
-  { id: '05-adapetive', title: '05 Adaptive', label: 'Our Adaptive 2.5D Approach' },
-  { id: '06-ceell', title: '06 Cell', label: 'Inside One Adaptive Cell' },
-  { id: '07-semawentic', title: '07 Semantic', label: 'How Semantics Enter the Map' },
-  { id: '08-pipeeline', title: '08 Pipeline', label: 'From Points → Objects → Terrain' },
-  { id: '09-foeveated', title: '09 Foveated', label: 'Foveated LiDAR Mapping' },
-  { id: '10-bienary', title: '10 Binary', label: 'Live Architecture' },
-  { id: '11-bacekend', title: '11 Backend', label: 'What Does the Backend Actually Receive?' },
-  { id: '12-expeer', title: '12 Exper.', label: 'Experiment Lab' },
+  { id: '1', title: '01 Challenge', label: 'The Challenge' },
+  { id: '2', title: '02 Overview', label: 'Proposed Solution' },
+  { id: '3', title: '03 LiDAR', label: 'How LiDAR Sees the World' },
+  { id: '4', title: '04 Why 2.5D', label: 'Why 2.5D?' },
+  { id: '5', title: '05 Pipeline', label: 'The Processing Pipeline' },
+  { id: '6', title: '06 Tech', label: 'Technical Approach' },
+  { id: '7', title: '07 Feasibility', label: 'Feasibility & Viability' },
+  { id: '8', title: '08 Results', label: 'Results & Performance' },
 ];
 
+// Tab bar for sections with multiple views
+function SectionTabs({ tabs, activeTab, onTabChange }: { tabs: string[], activeTab: number, onTabChange: (i: number) => void }) {
+  return (
+    <div className="flex bg-radial from-transparent from-25% to-primary/12 to-100% p-1 rounded-full border border-border w-fit">
+      {tabs.map((tab, i) => (
+        <button
+          key={tab}
+          onClick={() => onTabChange(i)}
+          className={`px-5 py-1.5 rounded-full text-sm transition-all duration-200 ${activeTab === i
+            ? 'bg-radial from-primary/80 from-10% to-primary to-100% text-primary-foreground'
+            : 'text-foreground/80'
+            }`}
+        >
+          {tab}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function ExplorerPage() {
-  const [activeSection, setActiveSection] = useState('01-sensor');
+  const [activeSection, setActiveSection] = useState('1');
   const [isPaused, setIsPaused] = useState(true);
   const sectionRefs = useRef<(HTMLElement | null)[]>([]);
+
+  // Tab states for combined sections
+  const [why25dTab, setWhy25dTab] = useState(0);
+  const [pipelineTab, setPipelineTab] = useState(0);
+  const [techTab, setTechTab] = useState(0);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -68,7 +79,7 @@ export default function ExplorerPage() {
 
   return (
     <DocsAnimationContext.Provider value={{ isPaused }}>
-      <div className={`flex flex-col md:flex-row h-screen w-full bg-background text-foreground overflow-hidden font-sans font-normal ${isPaused ? 'pause-animations' : ''}`}>
+      <div className={`flex flex-col md:flex-row h-screen w-full bg-background text-foreground overflow-hidden font-sans ${isPaused ? 'pause-animations' : ''}`}>
 
         {/* Global Animation Control & Header */}
         <div className="fixed top-3 right-3 w-fit z-50 pointer-events-none flex">
@@ -85,16 +96,17 @@ export default function ExplorerPage() {
           </div>
         </div>
 
-        {/* Navigation Rail */}
-        <nav className="p-3 w-full md:w-68 h-auto md:h-full relative z-20">
+        {/* Navigation Rail — kept exactly as-is */}
+        <nav className="p-3 md:pr-0 w-full md:w-68 h-auto md:h-full relative z-20">
           <Link
             href="/"
-            className="bg-radial from-transparent from-25% to-primary/10 to-100% w-fit backdrop-blur-xs pl-4 pr-5 py-3 rounded-full flex items-center gap-2 border shadow-sm"
+            className="bg-radial from-transparent from-25% to-primary/10 to-100% w-fit backdrop-blur-xs pl-4 pr-5 py-3 rounded-full flex items-center gap-2 border"
           >
-            <ArrowLeft className="w-4.5 h-4.5 mr-2" /> Back to dashboard
+            <ArrowLeft className="w-4.5 h-4.5 -mr-1 md:mr-2" />
+            <span className='hidden md:block'>Back to dashboard</span>
           </Link>
 
-          <div className="mt-4 bg-card/50 backdrop-blur-xs p-3 border shadow-sm rounded-4xl max-h-[80vh] overflow-y-auto">
+          <div className="mt-4 bg-card/50 backdrop-blur-xs p-1.5 md:p-3 border rounded-4xl max-h-[80vh] overflow-y-auto">
             <div className="flex md:flex-col space-x-2 md:space-x-0 md:space-y-2">
               {sections.map((section, _) => {
                 const isActive = activeSection === section.id;
@@ -124,83 +136,48 @@ export default function ExplorerPage() {
         {/* Main Content Area */}
         <main className="flex-1 h-full overflow-y-auto scroll-smooth">
 
-          {/* 01 Sensor & 02 Points */}
-          <section id="01-sensor" ref={(el) => { sectionRefs.current[0] = el; }} className="h-screen relative border-b border-border flex flex-col p-4 md:p-8">
-            <h2 className="text-lg md:text-xl font-normal mb-4 md:mb-8 text-primary">{sections[0].label}</h2>
-            <RealityToPoints />
-          </section>
+          {sections.map((section, index) => {
+            return (
+              <section
+                key={section.id}
+                id={section.id}
+                ref={(el) => { sectionRefs.current[index] = el; }}
+                className="relative flex flex-col p-4 md:p-6 min-h-screen"
+              >
+                {/* Headers and Tabs */}
+                <div className="text-lg md:text-xl text-primary pb-3">
+                  {section.label}
+                </div>
 
-          <section id="02-points" ref={(el) => { sectionRefs.current[1] = el; }} className="h-screen relative border-b border-border p-4 md:p-8 flex flex-col">
-            <h2 className="text-lg md:text-xl font-normal mb-4 md:mb-8 text-primary">{sections[1].label}</h2>
-            <div className="flex-1 bg-card rounded flex items-center justify-center text-muted-foreground border border-border text-sm">
-              [Interactive sensor anatomy visualization]
-            </div>
-          </section>
+                <div className="pb-3">
+                  {section.id === '4' && (
+                    <SectionTabs
+                      tabs={['Representations', 'Uniform vs Adaptive']}
+                      activeTab={why25dTab}
+                      onTabChange={setWhy25dTab}
+                    />
+                  )}
+                  {section.id === '6' && (
+                    <SectionTabs
+                      tabs={['System Architecture', 'Methodology & Stack']}
+                      activeTab={techTab}
+                      onTabChange={setTechTab}
+                    />
+                  )}
+                </div>
 
-          {/* 03 3D/2D */}
-          <section id="03-represent" ref={(el) => { sectionRefs.current[2] = el; }} className="h-screen relative border-b border-border p-4 md:p-8 flex flex-col">
-            <h2 className="text-lg md:text-xl font-normal mb-4 md:mb-8 text-primary">{sections[2].label}</h2>
-            <RepresentationCompare />
-          </section>
-
-          {/* 04 Problem & 05 Adaptive */}
-          <section id="04-problem" ref={(el) => { sectionRefs.current[3] = el; }} className="h-screen relative border-b border-border p-4 md:p-8 flex flex-col">
-            <h2 className="text-lg md:text-xl font-normal mb-4 md:mb-8 text-primary">{sections[3].label}</h2>
-            <UniformVsAdaptive />
-          </section>
-
-          <section id="05-adaptive" ref={(el) => { sectionRefs.current[4] = el; }} className="h-screen relative border-b border-border p-4 md:p-8 flex flex-col">
-            <h2 className="text-lg md:text-xl font-normal mb-4 md:mb-8 text-primary">{sections[4].label}</h2>
-            <div className="flex-1 bg-card rounded flex items-center justify-center text-muted-foreground border border-border text-sm">
-              [Foveated radial map visualization]
-            </div>
-          </section>
-
-          {/* 06 Cell & 07 Semantic */}
-          <section id="06-cell" ref={(el) => { sectionRefs.current[5] = el; }} className="h-screen relative border-b border-border p-4 md:p-8 flex flex-col">
-            <h2 className="text-lg md:text-xl font-normal mb-4 md:mb-8 text-primary">{sections[5].label}</h2>
-            <CellInspector />
-          </section>
-
-          <section id="07-semantic" ref={(el) => { sectionRefs.current[6] = el; }} className="h-screen relative border-b border-border p-4 md:p-8 flex flex-col">
-            <h2 className="text-lg md:text-xl font-normal mb-4 md:mb-8 text-primary">{sections[6].label}</h2>
-            <div className="flex-1 bg-card rounded flex items-center justify-center text-muted-foreground border border-border text-sm">
-              [Semantic confidence voting visualization]
-            </div>
-          </section>
-
-          {/* 08 Pipeline */}
-          <section id="08-pipeline" ref={(el) => { sectionRefs.current[7] = el; }} className="h-screen relative border-b border-border p-4 md:p-8 flex flex-col">
-            <h2 className="text-lg md:text-xl font-normal mb-4 md:mb-8 text-primary">{sections[7].label}</h2>
-            <PipelineStages />
-          </section>
-
-          {/* 09 Foveated */}
-          <section id="09-foveated" ref={(el) => { sectionRefs.current[8] = el; }} className="h-screen relative border-b border-border p-4 md:p-8 flex flex-col">
-            <h2 className="text-lg md:text-xl font-normal mb-4 md:mb-8 text-primary">{sections[8].label}</h2>
-            <div className="flex-1 bg-card rounded flex items-center justify-center text-muted-foreground border border-border text-sm">
-              [Attention cone & future extensions visualization]
-            </div>
-          </section>
-
-          {/* 10 Architecture & 11 Backend */}
-          <section id="10-binary" ref={(el) => { sectionRefs.current[9] = el; }} className="h-screen relative border-b border-border p-4 md:p-8 flex flex-col">
-            <h2 className="text-lg md:text-xl font-normal mb-4 md:mb-8 text-primary">{sections[9].label}</h2>
-            <ArchitectureDiagram />
-          </section>
-
-          <section id="11-backend" ref={(el) => { sectionRefs.current[10] = el; }} className="h-screen relative border-b border-border p-4 md:p-8 flex flex-col">
-            <h2 className="text-lg md:text-xl font-normal mb-4 md:mb-8 text-primary">{sections[10].label}</h2>
-            <div className="flex-1 bg-card rounded flex items-center justify-center text-muted-foreground border border-border text-sm">
-              [Binary frame hex viewer mockup]
-            </div>
-          </section>
-
-          {/* 12 Experiment Lab */}
-          <section id="12-exper" ref={(el) => { sectionRefs.current[11] = el; }} className="min-h-screen relative p-4 md:p-8 flex flex-col pb-32">
-            <h2 className="text-lg md:text-xl font-normal mb-4 md:mb-8 text-primary">{sections[11].label}</h2>
-            <ExperimentLab />
-          </section>
+                {/* Render Component */}
+                {section.id === '1' && <TheChallenge />}
+                {section.id === '2' && <ProposedSolution />}
+                {section.id === '3' && <RealityToPoints />}
+                {section.id === '4' && (why25dTab === 0 ? <RepresentationCompare /> : <UniformVsAdaptive />)}
+                {section.id === '5' && <PipelineStages />}
+                {section.id === '6' && (techTab === 0 ? <ArchitectureDiagram /> : <TechnicalMethodology />)}
+                {section.id === '7' && <FeasibilityViability />}
+                {section.id === '8' && <ExperimentLab />}
+              </section>
+            );
+          })}
 
         </main>
       </div>
