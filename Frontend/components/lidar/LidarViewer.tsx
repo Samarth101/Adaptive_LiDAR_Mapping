@@ -16,6 +16,8 @@ import { deserializeBinary, FrameData } from '@/lib/binaryProtocol';
 import Footer from '@/components/layout/Footer';
 import Link from 'next/link';
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000';
+
 // Dynamic imports (WebGL / canvas — client only)
 const LidarScene = dynamic(() => import('@/components/lidar/LidarScene'), { ssr: false });
 const SemanticMap2D = dynamic(() => import('@/components/lidar/SemanticMap2D'), { ssr: false });
@@ -95,7 +97,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3500);
 
-        const resModels = await fetch('http://localhost:8000/api/models', { signal: controller.signal });
+        const resModels = await fetch(`${BACKEND_URL}/api/models`, { signal: controller.signal });
         clearTimeout(timeoutId);
 
         if (!resModels.ok) throw new Error(`HTTP ${resModels.status}`);
@@ -108,7 +110,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
           setBackendOnline(true);
         }
 
-        const resSeq = await fetch('http://localhost:8000/api/sequences');
+        const resSeq = await fetch(`${BACKEND_URL}/api/sequences`);
         if (resSeq.ok) {
           const seqData = await resSeq.json();
           if (isMounted && Array.isArray(seqData)) {
@@ -146,7 +148,9 @@ export default function LidarViewer({ onFrameChange }: Props) {
 
     setLiveFrame(null); // Clear old frame when reconnecting/switching
 
-    const ws = new WebSocket('ws://localhost:8000/ws/stream');
+    const websocketUrl = new URL('/ws/stream', BACKEND_URL);
+    websocketUrl.protocol = websocketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(websocketUrl);
     ws.binaryType = 'arraybuffer';
 
     ws.onopen = () => {
