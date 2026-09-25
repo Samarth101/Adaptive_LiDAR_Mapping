@@ -409,7 +409,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
             <div className="relative w-full md:grow h-80 md:h-140 bg-background rounded-2xl overflow-hidden select-none">
               <LidarScene data={data} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} />
             </div>
-            <div className="w-full md:w-74 h-fit bg-radial from-transparent from-25% to-primary/10 to-100% rounded-2xl shrink-0">
+            <div className="w-full md:w-74 h-fit bg-card rounded-2xl shrink-0">
               <MetricsHUD
                 metrics={mode === 'simulated' ? frame.metrics : {
                   objects_detected: currentObjects,
