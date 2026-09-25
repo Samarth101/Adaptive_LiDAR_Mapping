@@ -8,12 +8,6 @@ try:
 except ImportError:
     Cylinder3DWrapper = None
 
-try:
-    from .minkuNet_wrapper import MinkUNetWrapper
-except ImportError:
-    MinkUNetWrapper = None
-
-
 MODEL_REGISTRY = {
     "pointnet2": PointNet2Wrapper,
 }
@@ -21,19 +15,9 @@ MODEL_REGISTRY = {
 if Cylinder3DWrapper is not None:
     MODEL_REGISTRY["cylinder3d"] = Cylinder3DWrapper
 
-if MinkUNetWrapper is not None:
-    MODEL_REGISTRY["minkuNet"] = MinkUNetWrapper
-
-
 def get_available_models():
-    """Return names of models whose dependencies are installed.
-
-    Also includes any precomputed prediction directories found at
-    ``predictions/<model_name>/``.
-    """
+    """Return names of models whose dependencies are installed."""
     names = list(MODEL_REGISTRY.keys())
-
-    # Auto-detect precomputed predictions
     from pathlib import Path
     from backend.config import BackendConfig
     cfg = BackendConfig()
@@ -44,21 +28,12 @@ def get_available_models():
                 pc_name = f"{child.name}_precomputed"
                 if pc_name not in names:
                     names.append(pc_name)
-
     return names
 
-
 def create_model(name: str, **kwargs) -> BaseSegmentationModel:
-    """Instantiate a model by registry name.
-
-    If the name ends with ``_precomputed``, creates a
-    ``PrecomputedModelWrapper`` pointing at the corresponding
-    predictions directory.
-    """
     if name in MODEL_REGISTRY:
         return MODEL_REGISTRY[name](**kwargs)
 
-    # Check for precomputed predictions
     if name.endswith("_precomputed"):
         base_name = name.replace("_precomputed", "")
         from pathlib import Path
@@ -73,6 +48,4 @@ def create_model(name: str, **kwargs) -> BaseSegmentationModel:
             )
 
     available = ", ".join(get_available_models())
-    raise ValueError(
-        f"Unknown model '{name}'. Available: {available}"
-    )
+    raise ValueError(f"Unknown model '{name}'. Available: {available}")

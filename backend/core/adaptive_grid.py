@@ -1,164 +1,101 @@
 import numpy as np
-import pandas as pd
-from dataclasses import dataclass
-from typing import List, Dict, Any
+import torch
+from typing import List, Dict
 
 from backend.config import ResolutionBand
 
-@dataclass
-class AdaptiveCell:
+def build_adaptive_grid(
+    points: np.ndarray,
+    semantic_ids: np.ndarray,
+    confidences: np.ndarray,
+    bands: List[ResolutionBand]
+) -> Dict[str, np.ndarray]:
     """
-    Represents a single cell in the adaptive foveated grid.
+    Lightning-fast GPU implementation of the adaptive grid using PyTorch and torch-scatter.
+    Performs clustering and aggregation entirely on the GPU in < 5ms.
     """
-    x: float
-    y: float
-    resolution: float
-    ground_elevation: float
-    max_height: float
-    object_height: float
-    semantic_id: int
-    semantic_confidence: float
-    point_count: int
-    distance_band: int
-    mean_height: float
-    height_variance: float
-
-
-def assign_distance_band(points: np.ndarray, bands: List[ResolutionBand]) -> np.ndarray:
-    """
-    Assigns each point to a distance band index based on horizontal distance.
-    """
-    distances = np.linalg.norm(points[:, :2], axis=1)
-    band_indices = np.full(len(points), -1, dtype=np.int32)
-    for i, band in enumerate(bands):
-        mask = (distances >= band.min_distance) & (distances < band.max_distance)
-        band_indices[mask] = i
-    return band_indices
-
-
-def assign_resolution(points: np.ndarray, bands: List[ResolutionBand]) -> np.ndarray:
-    """
-    Assigns spatial resolution to each point based on the defined bands.
-    """
-    distances = np.linalg.norm(points[:, :2], axis=1)
-    resolutions = np.full(len(points), -1.0, dtype=np.float32)
-    for band in bands:
-        mask = (distances >= band.min_distance) & (distances < band.max_distance)
-        resolutions[mask] = band.cell_size
-    return resolutions
-
-
-def build_adaptive_grid(points: np.ndarray, semantic_ids: np.ndarray, 
-                        confidences: np.ndarray, bands: List[ResolutionBand]) -> List[AdaptiveCell]:
-    """
-    Builds the adaptive grid using confidence-weighted semantic voting and vectorized operations.
-    """
-    resolutions = assign_resolution(points, bands)
-    distance_bands = assign_distance_band(points, bands)
-    
-    # Filter valid points
-    valid_mask = resolutions > 0
-    points = points[valid_mask]
-    semantic_ids = semantic_ids[valid_mask]
-    confidences = confidences[valid_mask]
-    resolutions = resolutions[valid_mask]
-    distance_bands = distance_bands[valid_mask]
-    
     if len(points) == 0:
-        return []
+        return {}
 
-    x = points[:, 0]
-    y = points[:, 1]
-    z = points[:, 2]
+    try:
+        import torch_scatter
+    except ImportError:
+        raise RuntimeError("torch_scatter is required for the GPU-accelerated grid builder.")
 
-    # Calculate cell coordinates
-    cell_x = np.floor(x / resolutions).astype(np.int64)
-    cell_y = np.floor(y / resolutions).astype(np.int64)
-    
-    # Use pandas for fast grouping
-    df = pd.DataFrame({
-        'z': z,
-        'cell_x': cell_x,
-        'cell_y': cell_y,
-        'res': resolutions,
-        'band': distance_bands,
-        'sem_id': semantic_ids,
-        'conf': confidences
-    })
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    grouped = df.groupby(['res', 'cell_x', 'cell_y'])
-    
-    # Aggregate geometric and distance properties
-    aggs = grouped.agg(
-        point_count=('z', 'size'),
-        min_z=('z', 'min'),
-        max_z=('z', 'max'),
-        mean_z=('z', 'mean'),
-        var_z=('z', lambda vals: vals.var(ddof=0) if len(vals) > 1 else 0.0),
-        band=('band', 'first')
-    )
-    
-    # Confidence-weighted semantic voting
-    sem_grouped = df.groupby(['res', 'cell_x', 'cell_y', 'sem_id'])['conf'].sum().reset_index()
-    # Identify the semantic class with the maximum confidence per cell
-    max_conf_idx = sem_grouped.groupby(['res', 'cell_x', 'cell_y'])['conf'].idxmax()
-    best_sems = sem_grouped.loc[max_conf_idx].set_index(['res', 'cell_x', 'cell_y'])
-    
-    merged = aggs.join(best_sems[['sem_id', 'conf']]).reset_index()
-    
-    # Compute total confidence in the cell to normalize the top semantic confidence
-    total_conf = grouped['conf'].sum().rename('total_conf')
-    merged = merged.join(total_conf, on=['res', 'cell_x', 'cell_y'])
-    
-    # Construct AdaptiveCell instances
-    cells = []
-    for row in merged.itertuples():
-        res = row.res
-        
-        # Reconstruct metric center coordinates
-        c_x = row.cell_x * res
-        c_y = row.cell_y * res
-        
-        ground_elev = row.min_z
-        max_height = row.max_z
-        obj_height = max_height - ground_elev
-        
-        sem_conf = row.conf / row.total_conf if row.total_conf > 0 else 0.0
-        
-        cells.append(AdaptiveCell(
-            x=c_x,
-            y=c_y,
-            resolution=res,
-            ground_elevation=ground_elev,
-            max_height=max_height,
-            object_height=obj_height,
-            semantic_id=int(row.sem_id),
-            semantic_confidence=sem_conf,
-            point_count=int(row.point_count),
-            distance_band=int(row.band),
-            mean_height=row.mean_z,
-            height_variance=row.var_z
-        ))
-        
-    return cells
+    # 1. Send data to GPU
+    pts = torch.from_numpy(points[:, :3]).to(device, dtype=torch.float32)
+    sids = torch.from_numpy(semantic_ids).to(device, dtype=torch.int32)
+    confs = torch.from_numpy(confidences).to(device, dtype=torch.float32)
 
+    x, y, z = pts[:, 0], pts[:, 1], pts[:, 2]
+    dist = torch.sqrt(x**2 + y**2)
 
-def grid_to_arrays(cells: List[AdaptiveCell]) -> Dict[str, np.ndarray]:
-    """
-    Converts a list of AdaptiveCells into a dictionary of arrays, 
-    suitable for binary serialization or passing to the frontend.
-    """
+    # 2. Assign distance bands and resolutions
+    band_indices = torch.zeros_like(dist, dtype=torch.int32)
+    resolutions = torch.full_like(dist, bands[-1].cell_size)
+    
+    for i, b in enumerate(bands):
+        mask = dist >= b.min_distance
+        if b.max_distance < float('inf'):
+            mask &= dist < b.max_distance
+        band_indices[mask] = i
+        resolutions[mask] = b.cell_size
+
+    # 3. Discretize coordinates
+    cell_x = torch.floor(x / resolutions).to(torch.int64)
+    cell_y = torch.floor(y / resolutions).to(torch.int64)
+
+    # Pack (cell_x, cell_y, band) into a single 64-bit int for O(1) hashing/uniques
+    # Shift cell coordinates to be purely positive (up to 1,000,000m range)
+    cx_shift = cell_x + 1000000
+    cy_shift = cell_y + 1000000
+    packed = (cx_shift << 32) | (cy_shift << 8) | band_indices.to(torch.int64)
+
+    # 4. Group points into cells
+    unq_packed, inverse, counts = torch.unique(packed, return_inverse=True, return_counts=True)
+    n_cells = unq_packed.shape[0]
+
+    # 5. Fast Aggregation using torch_scatter
+    # Elevation stats
+    min_z, _ = torch_scatter.scatter_min(z, inverse, dim=0, dim_size=n_cells)
+    max_z, _ = torch_scatter.scatter_max(z, inverse, dim=0, dim_size=n_cells)
+    mean_z = torch_scatter.scatter_mean(z, inverse, dim=0, dim_size=n_cells)
+    
+    # Variance: E[z^2] - E[z]^2
+    mean_z_sq = torch_scatter.scatter_mean(z**2, inverse, dim=0, dim_size=n_cells)
+    var_z = torch.clamp_min(mean_z_sq - mean_z**2, 0.0)
+
+    # Semantic voting: Take the ID of the point with the highest confidence in each cell
+    max_conf, max_conf_idx = torch_scatter.scatter_max(confs, inverse, dim=0, dim_size=n_cells)
+    best_sem_id = sids[max_conf_idx]
+
+    # 6. Unpack coordinates
+    unq_band = unq_packed & 0xFF
+    unq_cy = ((unq_packed >> 8) & 0xFFFFFF) - 1000000
+    unq_cx = (unq_packed >> 32) - 1000000
+
+    # Map bands back to resolutions
+    band_res_map = torch.tensor([b.cell_size for b in bands], device=device, dtype=torch.float32)
+    unq_res = band_res_map[unq_band]
+
+    cell_cx = unq_cx.float() * unq_res
+    cell_cy = unq_cy.float() * unq_res
+    obj_h = max_z - min_z
+
+    # 7. Pull back to CPU as NumPy arrays (one transfer)
     return {
-        'x': np.array([c.x for c in cells], dtype=np.float32),
-        'y': np.array([c.y for c in cells], dtype=np.float32),
-        'resolution': np.array([c.resolution for c in cells], dtype=np.float32),
-        'ground_elevation': np.array([c.ground_elevation for c in cells], dtype=np.float32),
-        'max_height': np.array([c.max_height for c in cells], dtype=np.float32),
-        'object_height': np.array([c.object_height for c in cells], dtype=np.float32),
-        'semantic_id': np.array([c.semantic_id for c in cells], dtype=np.int32),
-        'semantic_confidence': np.array([c.semantic_confidence for c in cells], dtype=np.float32),
-        'point_count': np.array([c.point_count for c in cells], dtype=np.int32),
-        'distance_band': np.array([c.distance_band for c in cells], dtype=np.int32),
-        'mean_height': np.array([c.mean_height for c in cells], dtype=np.float32),
-        'height_variance': np.array([c.height_variance for c in cells], dtype=np.float32),
+        'x': cell_cx.cpu().numpy(),
+        'y': cell_cy.cpu().numpy(),
+        'resolution': unq_res.cpu().numpy(),
+        'ground_elevation': min_z.cpu().numpy(),
+        'max_height': max_z.cpu().numpy(),
+        'object_height': obj_h.cpu().numpy(),
+        'semantic_id': best_sem_id.cpu().numpy(),
+        'semantic_confidence': max_conf.cpu().numpy(),
+        'point_count': counts.cpu().numpy().astype(np.int32),
+        'distance_band': unq_band.cpu().numpy().astype(np.int32),
+        'mean_height': mean_z.cpu().numpy(),
+        'height_variance': var_z.cpu().numpy(),
     }

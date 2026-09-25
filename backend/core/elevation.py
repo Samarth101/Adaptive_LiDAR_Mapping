@@ -1,6 +1,5 @@
 import numpy as np
 from typing import Dict, List, Tuple
-from backend.core.adaptive_grid import AdaptiveCell
 
 def estimate_ground_plane(points: np.ndarray, max_iterations: int = 100, threshold: float = 0.2) -> Tuple[float, float, float, float]:
     """
@@ -69,17 +68,17 @@ def compute_height_above_ground(points: np.ndarray, ground_params: Tuple[float, 
     return points[:, 2] - z_ground
 
 
-def process_elevation(cells: List[AdaptiveCell]) -> Dict[str, np.ndarray]:
+def process_elevation(cells: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
     """
     Processes the grid cells to generate elevation data arrays for the frontend.
     Returns a dictionary of arrays.
     """
-    if not cells:
+    if not cells or len(cells['x']) == 0:
         return {}
         
-    ground_elev = np.array([c.ground_elevation for c in cells], dtype=np.float32)
-    mean_h = np.array([c.mean_height for c in cells], dtype=np.float32)
-    roughness = np.array([c.height_variance for c in cells], dtype=np.float32)
+    ground_elev = cells['ground_elevation']
+    mean_h = cells['mean_height']
+    roughness = cells['height_variance']
     
     # Compute continuous colormap gradient [0, 1] based on mean height
     min_h = np.min(mean_h)
@@ -99,16 +98,16 @@ def process_elevation(cells: List[AdaptiveCell]) -> Dict[str, np.ndarray]:
     }
 
 
-def classify_terrain(cells: List[AdaptiveCell], flat_thresh: float = 0.05, sloped_thresh: float = 0.2) -> np.ndarray:
+def classify_terrain(cells: Dict[str, np.ndarray], flat_thresh: float = 0.05, sloped_thresh: float = 0.2) -> np.ndarray:
     """
     Classifies the terrain of each cell into 'flat', 'sloped', or 'rough' 
     based on the height variance.
     """
-    if not cells:
+    if not cells or len(cells['x']) == 0:
         return np.array([])
         
-    roughness = np.array([c.height_variance for c in cells])
-    classes = np.full(len(cells), 'rough', dtype=object)
+    roughness = cells['height_variance']
+    classes = np.full(len(roughness), 'rough', dtype=object)
     
     classes[roughness < flat_thresh] = 'flat'
     classes[(roughness >= flat_thresh) & (roughness < sloped_thresh)] = 'sloped'

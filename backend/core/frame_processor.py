@@ -24,7 +24,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 
 from backend.config import BackendConfig, DEFAULT_RESOLUTION_BANDS, DEFAULT_DISTANCE_BANDS
-from backend.core.adaptive_grid import AdaptiveCell, build_adaptive_grid, grid_to_arrays
+from backend.core.adaptive_grid import build_adaptive_grid
 from backend.core.data_loader import load_frame, load_scan
 from backend.core.distance_evaluator import EvaluationResult, evaluate_frame
 from backend.core.elevation import process_elevation, estimate_ground_plane, compute_height_above_ground
@@ -77,7 +77,7 @@ class FrameResult:
     prediction: ModelPrediction
 
     # Adaptive grid
-    cells: List[AdaptiveCell]
+    cells: Dict[str, np.ndarray]
     num_cells: int
     
     # Elevation data
@@ -231,10 +231,12 @@ class FrameProcessor:
         # ── Totals ───────────────────────────────────────────────────
         total_ms = (time.perf_counter() - t_total_start) * 1000.0
         fps = 1000.0 / total_ms if total_ms > 0 else 0.0
-        compression = N / len(cells) if cells else 0.0
+        num_cells = len(cells['x']) if cells else 0
+        compression = N / num_cells if num_cells > 0 else 0.0
 
         fps = 1000.0 / total_ms if total_ms > 0 else 0.0
-        compression = N / len(cells) if cells else 0.0
+        num_cells = len(cells['x']) if cells else 0
+        compression = N / num_cells if num_cells > 0 else 0.0
 
         # Extract pose
         ego_x, ego_y, ego_heading = parse_pose(self.config.label_root, sequence, frame_id)
@@ -292,7 +294,7 @@ class FrameProcessor:
             num_points=N,
             prediction=prediction,
             cells=cells,
-            num_cells=len(cells),
+            num_cells=len(cells['x']) if cells else 0,
             elevation_data=elevation_data,
             evaluation=evaluation,
             load_ms=load_ms,
@@ -313,7 +315,7 @@ class FrameProcessor:
         include_raw_points: bool = True,
         include_elevation: bool = True,
         include_distance_metrics: bool = True,
-        max_raw_points: int = 50000,
+        max_raw_points: int = 25000,
     ) -> FrameData:
         """Convert a FrameResult to FrameData for binary/JSON serialization.
 
@@ -326,15 +328,15 @@ class FrameProcessor:
         """
         cells = result.cells
 
-        # Cell arrays
-        cell_x = np.array([c.x for c in cells], dtype=np.float32)
-        cell_y = np.array([c.y for c in cells], dtype=np.float32)
-        cell_res = np.array([c.resolution for c in cells], dtype=np.float32)
-        cell_sem = np.array([c.semantic_id for c in cells], dtype=np.uint16)
-        cell_conf = np.array([c.semantic_confidence for c in cells], dtype=np.float32)
-        cell_obj_h = np.array([c.object_height for c in cells], dtype=np.float32)
-        cell_gnd = np.array([c.ground_elevation for c in cells], dtype=np.float32)
-        cell_cnt = np.array([c.point_count for c in cells], dtype=np.uint32)
+        # Cell arrays directly from Dict
+        cell_x = cells.get('x', np.array([], dtype=np.float32))
+        cell_y = cells.get('y', np.array([], dtype=np.float32))
+        cell_res = cells.get('resolution', np.array([], dtype=np.float32))
+        cell_sem = cells.get('semantic_id', np.array([], dtype=np.int32)).astype(np.uint16)
+        cell_conf = cells.get('semantic_confidence', np.array([], dtype=np.float32))
+        cell_obj_h = cells.get('object_height', np.array([], dtype=np.float32))
+        cell_gnd = cells.get('ground_elevation', np.array([], dtype=np.float32))
+        cell_cnt = cells.get('point_count', np.array([], dtype=np.int32)).astype(np.uint32)
 
         frame_data = FrameData(
             frame_id=result.frame_id,
@@ -393,12 +395,8 @@ class FrameProcessor:
 
         # ── Elevation ────────────────────────────────────────────────
         if include_elevation and result.elevation_data:
-            frame_data.cell_mean_height = np.array(
-                [c.mean_height for c in cells], dtype=np.float32
-            )
-            frame_data.cell_height_var = np.array(
-                [c.height_variance for c in cells], dtype=np.float32
-            )
+            frame_data.cell_mean_height = cells.get('mean_height', np.array([], dtype=np.float32))
+            frame_data.cell_height_var = cells.get('height_variance', np.array([], dtype=np.float32))
 
         # ── Distance metrics ─────────────────────────────────────────
         if include_distance_metrics and result.evaluation is not None:

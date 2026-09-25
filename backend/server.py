@@ -31,6 +31,10 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+import warnings
+warnings.filterwarnings("ignore", message=".*non-tuple sequence for multidimensional indexing is deprecated.*")
+warnings.filterwarnings("ignore", message=".*is_fx_tracing will return true.*")
+
 from backend.config import BackendConfig
 from backend.core.data_loader import (
     list_sequences,
@@ -402,7 +406,15 @@ async def ws_stream(websocket: WebSocket):
                     fid,
                     current_seq
                 )
-                frame_data = processor.result_to_frame_data(result)
+                frame_data = processor.result_to_frame_data(
+                    result,
+                    include_raw_points=True,
+                    max_raw_points=15000
+                )
+                
+                # Dynamic throttle: cap FPS when streaming massive grid objects to prevent React OOM
+                effective_target_fps = min(target_fps, 4) if current_model else target_fps
+                
                 binary = serialize_binary(frame_data)
 
                 # Send binary frame
@@ -441,7 +453,7 @@ async def ws_stream(websocket: WebSocket):
 
                 # Rate limiting
                 elapsed = time.perf_counter() - t_start
-                target_dt = 1.0 / target_fps
+                target_dt = 1.0 / effective_target_fps
                 sleep_time = target_dt - elapsed
                 if sleep_time > 0:
                     await asyncio.sleep(sleep_time)

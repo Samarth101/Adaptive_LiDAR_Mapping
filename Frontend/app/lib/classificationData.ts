@@ -7,29 +7,29 @@ export interface ClassificationEntry {
   category: ClassificationCategory;
 }
 
-// Master configuration based on the provided image dataset classes
+// Master configuration using beautiful standard self-driving palette
 export const CLASSIFICATION_CONFIG: Record<string, Record<string, ClassificationEntry>> = {
   ground: {
-    road: { id: 'road', label: 'road', color: '#ff00ff', category: 'terrain' }, // magenta
-    sidewalk: { id: 'sidewalk', label: 'sidewalk', color: '#4b004b', category: 'terrain' }, // dark magenta
-    parking: { id: 'parking', label: 'parking', color: '#ff96ff', category: 'terrain' }, // light pink
-    'other-ground': { id: 'other-ground', label: 'other-ground', color: '#af004b', category: 'terrain' }, // dark pink
+    road: { id: 'road', label: 'road', color: '#444444', category: 'terrain' }, // dark grey
+    sidewalk: { id: 'sidewalk', label: 'sidewalk', color: '#888888', category: 'terrain' }, // light grey
+    parking: { id: 'parking', label: 'parking', color: '#666666', category: 'terrain' }, // mid grey
+    'other-ground': { id: 'other-ground', label: 'other-ground', color: '#555555', category: 'terrain' }, // grey
   },
   structure: {
-    building: { id: 'building', label: 'building', color: '#ffc800', category: 'terrain' }, // orange-yellow
-    'other-structure': { id: 'other-structure', label: 'other-structure', color: '#ffc800', category: 'terrain' },
+    building: { id: 'building', label: 'building', color: '#ffb300', category: 'static' }, // orange-yellow
+    'other-structure': { id: 'other-structure', label: 'other-structure', color: '#ffb300', category: 'static' },
   },
   vehicle: {
-    car: { id: 'car', label: 'car', color: '#6496f5', category: 'dynamic' }, // blue
-    truck: { id: 'truck', label: 'truck', color: '#501eb4', category: 'dynamic' }, // purple
-    bicycle: { id: 'bicycle', label: 'bicycle', color: '#64e6f5', category: 'dynamic' }, // cyan
-    motorcycle: { id: 'motorcycle', label: 'motorcycle', color: '#1e3c96', category: 'dynamic' }, // dark blue
-    'other-vehicle': { id: 'other-vehicle', label: 'other-vehicle', color: '#0000ff', category: 'dynamic' }, // red -> wait backend said red but (0,0,255) is blue! Let's use blue
+    car: { id: 'car', label: 'car', color: '#0055ff', category: 'dynamic' }, // bright blue
+    truck: { id: 'truck', label: 'truck', color: '#00aaff', category: 'dynamic' }, // cyan
+    bicycle: { id: 'bicycle', label: 'bicycle', color: '#ff0055', category: 'dynamic' }, // bright pink/magenta
+    motorcycle: { id: 'motorcycle', label: 'motorcycle', color: '#ffaa00', category: 'dynamic' }, // orange
+    'other-vehicle': { id: 'other-vehicle', label: 'other-vehicle', color: '#0000ff', category: 'dynamic' }, // dark blue
   },
   nature: {
-    vegetation: { id: 'vegetation', label: 'vegetation', color: '#00af00', category: 'terrain' }, // green
-    trunk: { id: 'trunk', label: 'trunk', color: '#873c00', category: 'static' }, // brown
-    terrain: { id: 'terrain', label: 'terrain', color: '#96f050', category: 'terrain' }, // lime green
+    vegetation: { id: 'vegetation', label: 'vegetation', color: '#00ff00', category: 'terrain' }, // bright green
+    trunk: { id: 'trunk', label: 'trunk', color: '#8b4513', category: 'static' }, // brown
+    terrain: { id: 'terrain', label: 'terrain', color: '#55aa00', category: 'terrain' }, // olive green
   },
   human: {
     person: { id: 'person', label: 'person', color: '#ff1e1e', category: 'dynamic' }, // bright red

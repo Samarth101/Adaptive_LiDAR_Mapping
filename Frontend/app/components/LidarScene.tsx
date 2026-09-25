@@ -31,11 +31,11 @@ const VERT = /* glsl */`
     float distance = max(-mv.z, 0.1);
     
     if (uIsCell > 0.5) {
-      // In Adaptive Grid mode, physical cell size (aSize in meters: 0.05m near to 0.5m far)
-      // scales into visual square tiles on screen so compression is immediately perceptible!
-      float meterScale = max(aSize, 0.05) * 340.0;
-      float pixelSize = meterScale / (distance + 0.8);
-      gl_PointSize = clamp(pixelSize, 4.0, 75.0);
+      // Adaptive Grid mode: Solid square tiles, perfectly scaled
+      // Greatly reduced the multiplier so they don't smear together into giant blobs
+      float meterScale = max(aSize, 0.05) * 80.0;
+      float pixelSize = meterScale / (distance + 0.5);
+      gl_PointSize = clamp(pixelSize, 2.5, 25.0);
     } else {
       // Raw LiDAR point cloud: small uniform crisp points
       gl_PointSize = clamp(4.2 - distance * 0.018, 1.5, 5.0);
@@ -50,15 +50,8 @@ const FRAG = /* glsl */`
 
   void main() {
     if (vIsCell > 0.5) {
-      // CRISP SQUARE CELL with distinct bright grid boundary!
-      vec2 uv = abs(gl_PointCoord - 0.5);
-      float edge = max(uv.x, uv.y);
-      if (edge > 0.42) {
-        // High-contrast cell border (makes foveated cells instantly visible)
-        gl_FragColor = vec4(1.0, 1.0, 1.0, 0.9);
-      } else {
-        gl_FragColor = vec4(vColor.rgb, 0.95);
-      }
+      // CRISP SQUARE CELL (Solid color, no messy borders that cause aliasing)
+      gl_FragColor = vec4(vColor.rgb, vColor.a);
     } else {
       // RAW POINT: Soft circular point
       vec2  uv  = gl_PointCoord - 0.5;

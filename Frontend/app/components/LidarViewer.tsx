@@ -33,7 +33,9 @@ export default function LidarViewer({ onFrameChange }: Props) {
   
   // Data states
   const [data, setData] = useState<DemoData | null>(null);
-  const [liveFrame, setLiveFrame] = useState<FrameData | null>(null);
+  const liveFrameRef = useRef<FrameData | null>(null);
+  const [frameTrigger, setFrameTrigger] = useState(0);
+  const liveFrame = liveFrameRef.current;
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +108,8 @@ export default function LidarViewer({ onFrameChange }: Props) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3500);
 
-        const resModels = await fetch('http://localhost:8000/api/models', { signal: controller.signal });
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const resModels = await fetch(`${apiUrl}/api/models`, { signal: controller.signal });
         clearTimeout(timeoutId);
 
         if (!resModels.ok) throw new Error(`HTTP ${resModels.status}`);
@@ -120,7 +123,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
           setBackendErrorMsg(null);
         }
 
-        const resSeq = await fetch('http://localhost:8000/api/sequences');
+        const resSeq = await fetch(`${apiUrl}/api/sequences`);
         if (resSeq.ok) {
           const seqData = await resSeq.json();
           if (isMounted && Array.isArray(seqData)) {
@@ -157,9 +160,12 @@ export default function LidarViewer({ onFrameChange }: Props) {
       return;
     }
 
-    setLiveFrame(null); // Clear old frame when reconnecting/switching
+    liveFrameRef.current = null;
+    setFrameTrigger(t => t + 1); // Clear old frame when reconnecting/switching
+    if (wsRef.current) return;
 
-    const ws = new WebSocket('ws://localhost:8000/ws/stream');
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws/stream';
+    const ws = new WebSocket(wsUrl);
     ws.binaryType = 'arraybuffer';
     
     ws.onopen = () => {
@@ -172,7 +178,8 @@ export default function LidarViewer({ onFrameChange }: Props) {
       } else {
         try {
           const frame = deserializeBinary(event.data);
-          setLiveFrame(frame);
+          liveFrameRef.current = frame;
+          setFrameTrigger(t => t + 1);
         } catch (e) {
           console.error("Binary parse error:", e);
         }

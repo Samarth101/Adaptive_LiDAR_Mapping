@@ -115,7 +115,7 @@ class Cylinder3DWrapper(BaseSegmentationModel):
             num_input_features=self.fea_compre,
             nclasses=self._num_classes,
             n_height=self.grid_size[2],
-            init_size=16,
+            init_size=32,
         )
 
         # 3. Combined model
@@ -155,7 +155,20 @@ class Cylinder3DWrapper(BaseSegmentationModel):
         else:
             state_dict = checkpoint
 
-        self._model.load_state_dict(state_dict, strict=False)
+        # Strip 'module.' prefix from DataParallel-trained checkpoints
+        cleaned = {}
+        for k, v in state_dict.items():
+            new_key = k.replace("module.", "") if k.startswith("module.") else k
+            cleaned[new_key] = v
+
+        missing, unexpected = self._model.load_state_dict(cleaned, strict=False)
+        if missing:
+            logger.warning(f"Cylinder3D: {len(missing)} missing keys (first 5): {missing[:5]}")
+        if unexpected:
+            logger.warning(f"Cylinder3D: {len(unexpected)} unexpected keys (first 5): {unexpected[:5]}")
+        matched = len(cleaned) - len(unexpected)
+        logger.info(f"Cylinder3D: matched {matched}/{len(cleaned)} checkpoint keys")
+
         self._model.eval()
         self._is_loaded = True
         logger.info(f"Loaded Cylinder3D checkpoint from {checkpoint_path}")
@@ -163,9 +176,8 @@ class Cylinder3DWrapper(BaseSegmentationModel):
     def _prepare_input(self, xyz: torch.Tensor, intensity: Optional[torch.Tensor] = None):
         """
         Prepare input for Cylinder3D using pure PyTorch on GPU:
-        1. Convert XYZ+intensity to cylindrical coordinates
-        2. Compute 9-dim per-point features
-        3. Voxelize into cylindrical grid
+        Matches the exact feature layout from official SemanticKITTI dataloader:
+        [delta_rho, delta_theta, delta_z, rho, theta, z, x, y, intensity]
         """
         N = xyz.shape[0]
         if intensity is None:
@@ -179,31 +191,45 @@ class Cylinder3DWrapper(BaseSegmentationModel):
         rho = torch.sqrt(x ** 2 + y ** 2)
         theta = torch.atan2(y, x)  # [-pi, pi]
 
-        # Normalize
-        rho_min, rho_max_val = rho.min(), rho.max()
-        rho_norm = (rho - rho_min) / (rho_max_val - rho_min + 1e-6)
+        # Bounds for SemanticKITTI
+        rho_min, rho_max = 0.0, 50.0
+        theta_min, theta_max = -np.pi, np.pi
+        z_min_bound, z_max_bound = -3.0, 1.5
         
-        z_min, z_max_val = z.min(), z.max()
-        z_norm = (z - z_min) / (z_max_val - z_min + 1e-6)
-
-        # 9-dim features: [x, y, z, intensity, rho, theta, z, rho_norm, z_norm]
-        point_features = torch.stack([
-            x, y, z, intensity, rho, theta, z, rho_norm, z_norm
-        ], dim=-1).to(torch.float32)
-
-        # Voxelize: map each point to a grid cell
         grid_rho = self.grid_size[0]
         grid_theta = self.grid_size[1]
         grid_z = self.grid_size[2]
+        
+        # Intervals
+        intervals_rho = (rho_max - rho_min) / (grid_rho - 1)
+        intervals_theta = (theta_max - theta_min) / (grid_theta - 1)
+        intervals_z = (z_max_bound - z_min_bound) / (grid_z - 1)
 
-        # Compute voxel indices
-        rho_max_clamp = torch.clamp_min(rho_max_val, 50.0)
-        z_min_clamp = torch.clamp_max(z_min, -3.0)
-        z_max_clamp = torch.clamp_min(z_max_val, 1.0)
+        # Compute voxel indices (float first, then clamp)
+        idx_rho = (rho - rho_min) / intervals_rho
+        idx_theta = (theta - theta_min) / intervals_theta
+        idx_z = (z - z_min_bound) / intervals_z
 
-        rho_idx = torch.clamp((rho / rho_max_clamp * grid_rho).to(torch.int64), 0, grid_rho - 1)
-        theta_idx = torch.clamp(((theta + torch.pi) / (2 * torch.pi) * grid_theta).to(torch.int64), 0, grid_theta - 1)
-        z_idx = torch.clamp(((z - z_min_clamp) / (z_max_clamp - z_min_clamp + 1e-6) * grid_z).to(torch.int64), 0, grid_z - 1)
+        rho_idx = torch.clamp(torch.floor(idx_rho).to(torch.int64), 0, grid_rho - 1)
+        theta_idx = torch.clamp(torch.floor(idx_theta).to(torch.int64), 0, grid_theta - 1)
+        z_idx = torch.clamp(torch.floor(idx_z).to(torch.int64), 0, grid_z - 1)
+
+        # Voxel centers for delta calculation
+        center_rho = (rho_idx.float() + 0.5) * intervals_rho + rho_min
+        center_theta = (theta_idx.float() + 0.5) * intervals_theta + theta_min
+        center_z = (z_idx.float() + 0.5) * intervals_z + z_min_bound
+
+        delta_rho = rho - center_rho
+        delta_theta = theta - center_theta
+        delta_z = z - center_z
+
+        # EXACT order expected by the checkpoint's BatchNorm layer:
+        # [delta_rho, delta_theta, delta_z, rho, theta, z, x, y, intensity]
+        point_features = torch.stack([
+            delta_rho, delta_theta, delta_z, 
+            rho, theta, z, 
+            x, y, intensity
+        ], dim=-1).to(torch.float32)
 
         voxel_indices = torch.stack([rho_idx, theta_idx, z_idx], dim=-1).to(torch.int64)
 
@@ -235,7 +261,7 @@ class Cylinder3DWrapper(BaseSegmentationModel):
 
         with torch.no_grad():
             # Use mixed precision (FP16) for faster inference on CUDA
-            use_amp = (device == "cuda")
+            use_amp = False
             with torch.amp.autocast('cuda', enabled=use_amp):
                 # Forward pass through the combined model
                 output = self._model(
