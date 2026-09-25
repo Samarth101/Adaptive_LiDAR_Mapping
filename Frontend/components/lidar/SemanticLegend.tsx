@@ -26,7 +26,7 @@ export default memo(function SemanticLegend() {
   );
 
   return (
-    <div className="w-full h-fit bg-card rounded-md p-4 text-sm flex flex-col gap-3 font-normal">
+    <div className="w-full h-fit bg-card rounded-2xl p-4 text-sm flex flex-col gap-3 font-normal">
       <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
         <div className="text-muted-foreground text-sm shrink-0">Terrain:</div>
         <div className="flex flex-wrap gap-2 md:gap-3">

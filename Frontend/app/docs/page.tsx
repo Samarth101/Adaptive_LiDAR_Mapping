@@ -12,10 +12,10 @@ import RepresentationCompare from '@/components/docs/visualizations/Representati
 import UniformVsAdaptive from '@/components/docs/visualizations/UniformVsAdaptive';
 import PipelineStages from '@/components/docs/visualizations/PipelineStages';
 import ArchitectureDiagram from '@/components/docs/visualizations/ArchitectureDiagram';
-import ExperimentLab from '@/components/docs/visualizations/ExperimentLab';
 import ProposedSolution from '@/components/docs/visualizations/ProposedSolution';
 import TechnicalMethodology from '@/components/docs/visualizations/TechnicalMethodology';
 import FeasibilityViability from '@/components/docs/visualizations/FeasibilityViability';
+import Footer from '@/components/layout/Footer';
 import { Button } from '@/components/ui/button';
 
 const sections = [
@@ -26,7 +26,6 @@ const sections = [
   { id: '5', title: '05 Pipeline', label: 'The Processing Pipeline' },
   { id: '6', title: '06 Tech', label: 'Technical Approach' },
   { id: '7', title: '07 Feasibility', label: 'Feasibility & Viability' },
-  { id: '8', title: '08 Results', label: 'Results & Performance' },
 ];
 
 // Tab bar for sections with multiple views
@@ -123,7 +122,7 @@ export default function ExplorerPage() {
                       {section.title.split(' ')[0]}
                     </span>
                     <span>
-                      {section.title.substring(section.title.indexOf(' ') + 1)}
+                      {section.label}
                     </span>
                   </Link>
                 );
@@ -134,7 +133,7 @@ export default function ExplorerPage() {
         </nav>
 
         {/* Main Content Area */}
-        <main className="flex-1 h-full overflow-y-auto scroll-smooth">
+        <main className="flex-1 h-full overflow-y-auto space-y-10 scroll-smooth">
 
           {sections.map((section, index) => {
             return (
@@ -174,10 +173,13 @@ export default function ExplorerPage() {
                 {section.id === '5' && <PipelineStages />}
                 {section.id === '6' && (techTab === 0 ? <ArchitectureDiagram /> : <TechnicalMethodology />)}
                 {section.id === '7' && <FeasibilityViability />}
-                {section.id === '8' && <ExperimentLab />}
               </section>
             );
           })}
+
+          <div className="pb-8">
+            <Footer />
+          </div>
 
         </main>
       </div>

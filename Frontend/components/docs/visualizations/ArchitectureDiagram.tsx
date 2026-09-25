@@ -1,139 +1,211 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Database, Binary, ArrowRight, Zap, Eye, MonitorPlay } from 'lucide-react';
+import React from 'react';
+import {
+  Database, FileText, Binary, Settings, Box, Map, Layers,
+  Network, Hexagon, Component, LayoutGrid, Cpu,
+  Radio, Monitor, ArrowRight, Activity, LucideIcon
+} from 'lucide-react';
+
+const Node = ({
+  icon: Icon,
+  title,
+  subtitle,
+  className = ""
+}: {
+  icon: LucideIcon,
+  title: string,
+  subtitle: string,
+  className?: string
+}) => (
+  <div className={`bg-background/50 border border-border/60 rounded-xl p-3 flex flex-col items-center text-center gap-2 w-full lg:min-w-[200px] ${className}`}>
+    <div className="text-primary p-2 bg-primary/10 rounded-lg shrink-0">
+      <Icon className="w-5 h-5 md:w-6 md:h-6" strokeWidth={1.5} />
+    </div>
+    <div>
+      <div className="text-xs md:text-[13px] font-medium text-foreground leading-tight mb-1">{title}</div>
+      <div className="text-[10px] text-muted-foreground leading-tight px-1">{subtitle}</div>
+    </div>
+  </div>
+);
+
+const Section = ({ title, children }: { title: string, children: React.ReactNode }) => {
+  return (
+    <div className="bg-radial from-transparent from-25% to-primary/7 to-100% backdrop-blur-xs border rounded-4xl overflow-hidden">
+      <div className="text-primary border-b border-border/50 px-5 py-3">
+        {title}
+      </div>
+      <div className="p-2 flex-1 space-y-2 justify-center items-center shrink-0">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+type DiagramNode = {
+  icon?: LucideIcon;
+  title?: string;
+  subtitle?: string;
+  wrapperClass?: string;
+  isSeparator?: boolean;
+  isGrid?: boolean;
+  gridNodes?: DiagramNode[];
+};
+
+type DiagramSection = {
+  title: string;
+  nodes: DiagramNode[];
+};
+
+type DiagramColumn = {
+  id: string;
+  sections: DiagramSection[];
+};
+
+const architectureData: DiagramColumn[] = [
+  {
+    id: "col-1",
+    sections: [
+      {
+        title: "Data Acquisition",
+        nodes: [
+          { icon: Database, title: "SemanticKITTI Dataset", subtitle: "Velodyne .bin Scans" },
+          { icon: FileText, title: "Vehicle Trajectory", subtitle: "poses.txt & Odometry" },
+          { icon: Binary, title: "Binary Protocol Deserializer", subtitle: "ArrayBuffer", wrapperClass: "w-full mt-2 lg:mt-8" }
+        ]
+      }
+    ]
+  },
+  {
+    id: "col-2",
+    sections: [
+      {
+        title: "Preprocessing & Mapping",
+        nodes: [
+          { icon: Settings, title: "Data Loader & Frame Sequencer", subtitle: "Ingestion and sequencing of raw data" },
+          { isSeparator: true },
+          { icon: Box, title: "Live 3D Point Cloud", subtitle: "Three.js & R3F" },
+          { icon: Map, title: "2.5D Semantic Map", subtitle: "HTML5 2D Canvas" },
+          { icon: Layers, title: "3D Elevation Map", subtitle: "Deck.gl + MapLibre" },
+          { icon: Activity, title: "HUD & Metrics", subtitle: "Savings % & Object Counts" }
+        ]
+      }
+    ]
+  },
+  {
+    id: "col-3",
+    sections: [
+      {
+        title: "Semantic AI",
+        nodes: [
+          { icon: Network, title: "PointNet++", subtitle: "Baseline / MPS / CPU / CUDA model" },
+          { icon: Hexagon, title: "Cylinder3D", subtitle: "Cylindrical Voxel / CUDA model" },
+          { icon: Component, title: "MinkUNet", subtitle: "Sparse Tensor / CUDA model" }
+        ]
+      }
+    ]
+  },
+  {
+    id: "col-4",
+    sections: [
+      {
+        title: "Adaptive Learning",
+        nodes: [
+          { icon: LayoutGrid, title: "Adaptive Grid Engine", subtitle: "Vectorized Foveated Rings" },
+          { icon: Cpu, title: "DBSCAN Clustering", subtitle: "3D Bounding Boxes" }
+        ]
+      },
+      {
+        title: "Output & Streaming",
+        nodes: [
+          {
+            isGrid: true,
+            gridNodes: [
+              { icon: Binary, title: "Binary Frame V1 Serializer", subtitle: "C-struct Pack" },
+              { icon: Layers, title: "Elevation & RANSAC", subtitle: "Ground Separation" }
+            ]
+          },
+          { icon: Radio, title: "WebSocket Server", subtitle: "Port 8000 Non-blocking Async ThreadPool" },
+          { icon: Monitor, title: "Session Controller", subtitle: "Model / Seq / Connect" }
+        ]
+      }
+    ]
+  }
+];
 
 export default function ArchitectureDiagram() {
-  const [showHex, setShowHex] = useState(false);
-
   return (
-    <div className="flex-1 bg-background rounded-xl border border-border flex flex-col overflow-hidden relative">
-      
+    <div className="flex-1 rounded-4xl overflow-hidden relative border p-2 md:p-4">
+
       {/* Background grid */}
-      <div className="absolute inset-0 opacity-5 bg-[linear-gradient(to_right,currentColor_1px,transparent_1px),linear-gradient(to_bottom,currentColor_1px,transparent_1px)] bg-[size:24px_24px]"></div>
+      <div className="absolute inset-0 opacity-5 bg-[linear-gradient(to_right,currentColor_1px,transparent_1px),linear-gradient(to_bottom,currentColor_1px,transparent_1px)] bg-[size:50px_50px] pointer-events-none"></div>
 
-      <div className="p-8 relative z-10 flex flex-col h-full">
-        
-        <div className="mb-8">
-          <h3 className="text-foreground">Live System Architecture</h3>
-          <p className="text-muted-foreground text-sm max-w-2xl mt-2">
-            A major bottleneck in robotics is transmitting bulky point cloud JSON objects to visualizers. 
-            LumiGRID solves this by packing semantic cells into a strict C-struct binary payload, cutting network latency.
-          </p>
+      <div className="relative z-10 h-full overflow-hidden flex flex-col">
+
+        <div className="p-1 shrink-0 mb-4">
+          <div className="text-lg font-medium text-foreground">System Architecture</div>
+          <div className="text-muted-foreground text-sm max-w-3xl mt-1">
+            Complete data flow from raw LiDAR ingestion to realtime rendering.
+          </div>
         </div>
 
-        {/* Pipeline Diagram */}
-        <div className="flex-1 flex items-center justify-center gap-4">
-          
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-24 h-24 bg-card border-2 border-border/50 rounded-xl flex items-center justify-center text-muted-foreground shadow-sm">
-              <Eye className="w-10 h-10" />
-            </div>
-            <span className="text-xs text-muted-foreground text-center">LiDAR<br/>Sensor</span>
+        {/* Scrollable Container */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 rounded-2xl">
+          <div className="flex flex-col lg:flex-row gap-3 items-stretch justify-start p-1 lg:overflow-x-auto">
+
+            {architectureData.map((col, colIndex) => (
+              <React.Fragment key={col.id}>
+                {/* Column */}
+                <div className="flex flex-col gap-4 shrink-0 w-full lg:w-fit">
+                  {col.sections.map((section, secIndex) => (
+                    <Section key={secIndex} title={section.title}>
+                      {section.nodes.map((node, nodeIndex) => {
+                        if (node.isSeparator) {
+                          return <div key={nodeIndex} className="w-full border-t my-3"></div>;
+                        }
+
+                        if (node.isGrid && node.gridNodes) {
+                          return (
+                            <div key={nodeIndex} className="grid grid-cols-2 gap-2 w-full min-w-[280px]">
+                              {node.gridNodes.map((gridNode, gIndex) => (
+                                <Node key={gIndex} icon={gridNode.icon!} title={gridNode.title!} subtitle={gridNode.subtitle!} className="lg:min-w-0" />
+                              ))}
+                            </div>
+                          );
+                        }
+
+                        const NodeComponent = <Node icon={node.icon!} title={node.title!} subtitle={node.subtitle!} />;
+
+                        return node.wrapperClass ? (
+                          <div key={nodeIndex} className={node.wrapperClass}>
+                            {NodeComponent}
+                          </div>
+                        ) : (
+                          <React.Fragment key={nodeIndex}>{NodeComponent}</React.Fragment>
+                        );
+                      })}
+                    </Section>
+                  ))}
+                </div>
+
+                {/* Arrows between columns */}
+                {colIndex < architectureData.length - 1 && (
+                  <>
+                    <div className="hidden lg:block h-fit shrink-0 pt-4">
+                      <ArrowRight className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    {/* Down arrow for mobile */}
+                    <div className="flex lg:hidden items-center justify-center shrink-0 py-1">
+                      <ArrowRight className="w-5 h-5 text-muted-foreground rotate-90" />
+                    </div>
+                  </>
+                )}
+              </React.Fragment>
+            ))}
+
           </div>
-
-          <ArrowRight className="w-6 h-6 text-muted-foreground/40" />
-
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-24 h-24 bg-card border-2 border-primary/20 rounded-xl flex flex-col items-center justify-center text-primary shadow-sm relative overflow-hidden">
-              <div className="absolute inset-0 bg-primary/5" />
-              <Zap className="w-8 h-8 mb-1 relative z-10" />
-              <span className="text-[10px] relative z-10">PointNet++</span>
-            </div>
-            <span className="text-xs text-muted-foreground text-center">Semantic<br/>AI</span>
-          </div>
-
-          <ArrowRight className="w-6 h-6 text-muted-foreground/40" />
-
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-24 h-24 bg-card border-2 border-primary/15 rounded-xl flex flex-col items-center justify-center text-primary shadow-sm relative overflow-hidden">
-              <div className="absolute inset-0 bg-primary/5" />
-              <Database className="w-8 h-8 mb-1 relative z-10" />
-              <span className="text-[10px] relative z-10">Adaptive</span>
-            </div>
-            <span className="text-xs text-muted-foreground text-center">Foveated<br/>Mapper</span>
-          </div>
-
-          <ArrowRight className="w-6 h-6 text-muted-foreground/40" />
-
-          {/* Interactive Binary Node */}
-          <div className="flex flex-col items-center gap-2 cursor-pointer group" onClick={() => setShowHex(true)}>
-            <div className="w-32 h-32 bg-card border-2 border-primary rounded-xl flex flex-col items-center justify-center text-primary shadow-lg group-hover:bg-primary/5 transition-colors">
-              <Binary className="w-10 h-10 mb-2" />
-              <span className="text-xs">Binary Frame</span>
-              <span className="text-[10px] text-primary/70 mt-1">Click to inspect</span>
-            </div>
-            <span className="text-xs text-muted-foreground text-center">FastAPI<br/>WebSocket</span>
-          </div>
-
-          <ArrowRight className="w-6 h-6 text-muted-foreground/40" />
-
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-24 h-24 bg-card border-2 border-border/50 rounded-xl flex flex-col items-center justify-center text-muted-foreground shadow-sm">
-              <MonitorPlay className="w-10 h-10 mb-1" />
-              <span className="text-[10px]">deck.gl</span>
-            </div>
-            <span className="text-xs text-muted-foreground text-center">Next.js<br/>Frontend</span>
-          </div>
-
         </div>
-
       </div>
-
-      {/* Hex Viewer Modal Overlay */}
-      {showHex && (
-        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-8" onClick={() => setShowHex(false)}>
-          <div className="bg-card border border-border/50 rounded-xl shadow-2xl w-full max-w-4xl flex flex-col max-h-full" onClick={e => e.stopPropagation()}>
-            
-            <div className="flex justify-between items-center p-4 border-b border-border">
-              <h4 className="text-primary flex items-center gap-2"><Binary className="w-5 h-5"/> Frame Binary Structure</h4>
-              <button className="text-muted-foreground/70 hover:text-muted-foreground" onClick={() => setShowHex(false)}>✕</button>
-            </div>
-
-            <div className="p-6 overflow-y-auto flex gap-6">
-              
-              <div className="w-1/3 space-y-4">
-                <div className="bg-background p-4 rounded border border-border">
-                  <h5 className="text-muted-foreground text-xs mb-2">HEADER (52 Bytes)</h5>
-                  <ul className="text-xs font-mono text-muted-foreground/70 space-y-1">
-                    <li><span className="text-primary">uint32</span> magic (0x10010110)</li>
-                    <li><span className="text-primary">uint32</span> version (1)</li>
-                    <li><span className="text-primary">uint32</span> frame_id</li>
-                    <li><span className="text-primary">float64</span> timestamp</li>
-                    <li><span className="text-primary">uint32</span> cell_count</li>
-                    <li><span className="text-primary">uint32</span> obj_count</li>
-                    <li><span className="text-primary">uint32</span> num_points</li>
-                    <li><span className="text-primary">float32</span> inference_fps</li>
-                  </ul>
-                </div>
-                <div className="bg-background p-4 rounded border border-border">
-                  <h5 className="text-muted-foreground text-xs mb-2">PAYLOAD (variable)</h5>
-                  <ul className="text-xs font-mono text-muted-foreground/70 space-y-1">
-                    <li>Array[cell_count]:</li>
-                    <li><span className="text-primary/70">float32</span> x, y, res</li>
-                    <li><span className="text-primary/70">uint16</span>  semantic_id</li>
-                    <li><span className="text-primary/70">float32</span> elevation</li>
-                  </ul>
-                </div>
-              </div>
-
-              <div className="flex-1 bg-background p-4 rounded border border-border overflow-hidden font-mono text-xs leading-relaxed">
-                 <h5 className="text-muted-foreground mb-2">Simulated Byte Stream</h5>
-                 <div className="text-muted-foreground/30">
-                   <span className="text-primary">10 01 01 10 01 00 00 00 17 00 00 00</span> 00 00 00 00 <br/>
-                   <span className="text-primary">A8 47 E6 41</span> <span className="text-primary/60">12 AF 00 00</span> 00 00 00 00 00 00 00 00 <br/>
-                   <span className="text-primary/70">CD CC 8C 40 CD CC 0C 40 00 00 80 3E 01 00 00 00</span> <br/>
-                   <span className="text-primary/70">00 00 00 00 CD CC 8C 40 9A 99 19 40 00 00 80 3E</span> <br/>
-                   02 00 00 00 00 00 00 00 CD CC 8C 40 66 66 26 40 <br/>
-                   00 00 80 3E 01 00 00 00 00 00 00 00 CD CC 8C 40 <br/>
-                   ...
-                 </div>
-              </div>
-
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

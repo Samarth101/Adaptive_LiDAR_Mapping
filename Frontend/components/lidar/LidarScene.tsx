@@ -2,10 +2,9 @@
 
 import { Suspense, useRef, useMemo, useState, useEffect, memo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, useGLTF, Html } from '@react-three/drei';
+import { OrbitControls, useGLTF, Html, Center } from '@react-three/drei';
 import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
-import { ErrorBoundary } from '@/components/lidar/ErrorBoundary';
 import type { DemoData, Frame, LidarPoint } from '@/types/dataset';
 import { OBJ_TYPE_COLORS, getObjectClass } from '@/lib/foveatedGrid';
 import { LIDAR_RGB } from '@/lib/classificationData';
@@ -132,7 +131,7 @@ function PointCloud({ points, mode, liveFrame, carPosRef, frameIdxRef, visualMod
           colorBuffer: new Float32Array(0), sizes: new Float32Array(0), count: 0
         };
       }
-      
+
       const isCells = isCellMode && liveFrame.cell_x && liveFrame.cell_x.length > 0;
       if (!isCells && (!liveFrame.raw_x || liveFrame.raw_x.length === 0)) {
         return {
@@ -157,7 +156,7 @@ function PointCloud({ points, mode, liveFrame, carPosRef, frameIdxRef, visualMod
       for (let i = 0; i < n; i++) {
         const px = xs[i];
         const py = ys[i];
-        
+
         // In cells mode, if an obstacle has height > 0.2m, elevate the cell so it's not flat on the road
         let pz = zs[i];
         if (isCells && objHeights && objHeights[i] > 0.25) {
@@ -289,14 +288,13 @@ function GLTFCar({ carPosRef, headingRef }: {
 useGLTF.preload('/car.glb');
 
 const MODEL_MAP: Record<string, { path: string, rotation: [number, number, number], yOffset: number }> = {
-  'car': { path: '/explorer-assets/basic_car.glb', rotation: [0, Math.PI, 0], yOffset: 0 },
+  'car': { path: '/explorer-assets/basic_car.glb', rotation: [0, -Math.PI / 2, 0], yOffset: 0 },
   'truck': { path: '/explorer-assets/auto.glb', rotation: [0, Math.PI / 2, 0], yOffset: -0.5 },
-  'person': { path: '/explorer-assets/person.glb', rotation: [0, 0, 0], yOffset: -0.5 },
-  'bicycle': { path: '/explorer-assets/bicycle.glb', rotation: [0, -Math.PI / 2, 0], yOffset: 0 },
-  'motorcycle': { path: '/explorer-assets/motorcycle.glb', rotation: [0, -Math.PI / 2, 0], yOffset: 0 },
-  'bicyclist': { path: '/explorer-assets/bicycle.glb', rotation: [0, -Math.PI / 2, 0], yOffset: 0 },
-  'motorcyclist': { path: '/explorer-assets/motorcycle.glb', rotation: [0, -Math.PI / 2, 0], yOffset: 0 },
-  'other-vehicle': { path: '/explorer-assets/auto.glb', rotation: [0, Math.PI / 2, 0], yOffset: -0.5 }
+  'bicycle': { path: '/explorer-assets/bicycle.glb', rotation: [0, Math.PI / 2, 0], yOffset: 0 },
+  'motorcycle': { path: '/explorer-assets/motorcycle.glb', rotation: [0, Math.PI / 2, 0], yOffset: 0.5 },
+  'bicyclist': { path: '/explorer-assets/bicycle.glb', rotation: [0, Math.PI / 2, 0], yOffset: 0 },
+  'motorcyclist': { path: '/explorer-assets/motorcycle.glb', rotation: [0, Math.PI / 2, 0], yOffset: 0.5 },
+  'other-vehicle': { path: '/explorer-assets/auto.glb', rotation: [0, -Math.PI / 2, 0], yOffset: -0.5 }
 };
 
 Object.values(MODEL_MAP).forEach(info => useGLTF.preload(info.path));
@@ -308,17 +306,23 @@ function GLTFModel({ type }: { type: string }) {
   const cloned = useMemo(() => scene.clone(), [scene]);
   return (
     <group position={[0, info.yOffset, 0]}>
-      <primitive object={cloned} rotation={info.rotation} />
+      {type === 'person' ? (
+        <Center bottom>
+          <primitive object={cloned} rotation={info.rotation} />
+        </Center>
+      ) : (
+        <primitive object={cloned} rotation={info.rotation} />
+      )}
     </group>
   );
 }
 
 // ─── Detected Objects 3D ───────────────
-function DetectedObjects3D({ frames, frameIdxRef, mode, liveFrame }: { 
-    frames: Frame[]; 
-    frameIdxRef: React.RefObject<number>;
-    mode: 'simulated' | 'live';
-    liveFrame: FrameData | null;
+function DetectedObjects3D({ frames, frameIdxRef, mode, liveFrame }: {
+  frames: Frame[];
+  frameIdxRef: React.RefObject<number>;
+  mode: 'simulated' | 'live';
+  liveFrame: FrameData | null;
 }) {
   const [fi, setFi] = useState(0);
 
@@ -329,79 +333,79 @@ function DetectedObjects3D({ frames, frameIdxRef, mode, liveFrame }: {
   });
 
   if (mode === 'simulated') {
-      return (
-        <group>
-          {frames[fi]?.detected_objects.map((obj, i) => {
-            const [tx, ty, tz] = d2t(obj.position as [number, number, number]);
-            const color = OBJ_TYPE_COLORS[obj.type] || '#888';
-            const height = obj.size[2] || 1.5;
-            const opacity = 0.5 + obj.confidence * 0.5;
-            const objClass = getObjectClass(obj.type);
-            const badge = objClass === 'static' ? '[S]' : objClass === 'dynamic' ? '[D]' : '';
-    
-            return (
-              <group key={i} position={[tx, ty, tz]} rotation={[0, -obj.heading, 0]}>
-                <group position={[0, -height / 2, 0]}>
-                  <GLTFModel type={obj.type} />
-                </group>
-                <lineSegments>
-                  <edgesGeometry args={[new THREE.BoxGeometry(obj.size[0], height, obj.size[1])]} />
-                  <lineBasicMaterial color={color} transparent opacity={opacity} />
-                </lineSegments>
-                <Html position={[0, height / 2 + 0.5, 0]} center>
-                  <div
-                    className="text-[12px] bg-(--color-1)/70 px-1 py-0.5 rounded whitespace-nowrap border"
-                    style={{ color: color, borderColor: color }}
-                  >
-                    {badge} {obj.type}
-                  </div>
-                </Html>
-              </group>
-            );
-          })}
-        </group>
-      );
-  } else {
-      if (!liveFrame || !liveFrame.obj_id) return <group />;
-      
-      const objects = [];
-      const count = liveFrame.obj_id.length;
-      for (let i = 0; i < count; i++) {
-          const typeName = BACKEND_CLASS_NAMES[liveFrame.obj_type![i]] || 'car';
-          const color = OBJ_TYPE_COLORS[typeName] || '#888';
-          
-          // Points are in local space
-          const gx = liveFrame.obj_cx![i];
-          const gy = liveFrame.obj_cy![i];
-          const gz = liveFrame.obj_cz![i];
-          
-          const [tx, ty, tz] = d2t([gx, gy, gz]);
-          const w = liveFrame.obj_w![i];
-          const l = liveFrame.obj_l![i];
-          const h = liveFrame.obj_h![i];
-          const heading = liveFrame.obj_heading![i];
-          const opacity = 0.5 + liveFrame.obj_conf![i] * 0.5;
-          const objClass = getObjectClass(typeName);
+    return (
+      <group>
+        {frames[fi]?.detected_objects.map((obj, i) => {
+          const [tx, ty, tz] = d2t(obj.position as [number, number, number]);
+          const color = OBJ_TYPE_COLORS[obj.type] || '#888';
+          const height = obj.size[2] || 1.5;
+          const opacity = 0.5 + obj.confidence * 0.5;
+          const objClass = getObjectClass(obj.type);
           const badge = objClass === 'static' ? '[S]' : objClass === 'dynamic' ? '[D]' : '';
 
-          objects.push(
-              <group key={i} position={[tx, ty, tz]} rotation={[0, -heading, 0]}>
-                <lineSegments>
-                  <edgesGeometry args={[new THREE.BoxGeometry(l, h, w)]} />
-                  <lineBasicMaterial color={color} transparent opacity={opacity} />
-                </lineSegments>
-                <Html position={[0, h / 2 + 0.5, 0]} center>
-                  <div
-                    className="text-[12px] bg-(--color-1)/70 px-1 py-0.5 rounded whitespace-nowrap border"
-                    style={{ color: color, borderColor: color }}
-                  >
-                    {badge} {typeName}
-                  </div>
-                </Html>
+          return (
+            <group key={i} position={[tx, ty, tz]} rotation={[0, -obj.heading, 0]}>
+              <group position={[0, -height / 2, 0]}>
+                <GLTFModel type={obj.type} />
               </group>
+              <lineSegments>
+                <edgesGeometry args={[new THREE.BoxGeometry(obj.size[0], height, obj.size[1])]} />
+                <lineBasicMaterial color={color} transparent opacity={opacity} />
+              </lineSegments>
+              <Html position={[0, height / 2 + 0.5, 0]} center>
+                <div
+                  className="text-[12px] bg-(--color-1)/70 px-1 py-0.5 rounded whitespace-nowrap border"
+                  style={{ color: color, borderColor: color }}
+                >
+                  {badge} {obj.type}
+                </div>
+              </Html>
+            </group>
           );
-      }
-      return <group>{objects}</group>;
+        })}
+      </group>
+    );
+  } else {
+    if (!liveFrame || !liveFrame.obj_id) return <group />;
+
+    const objects = [];
+    const count = liveFrame.obj_id.length;
+    for (let i = 0; i < count; i++) {
+      const typeName = BACKEND_CLASS_NAMES[liveFrame.obj_type![i]] || 'car';
+      const color = OBJ_TYPE_COLORS[typeName] || '#888';
+
+      // Points are in local space
+      const gx = liveFrame.obj_cx![i];
+      const gy = liveFrame.obj_cy![i];
+      const gz = liveFrame.obj_cz![i];
+
+      const [tx, ty, tz] = d2t([gx, gy, gz]);
+      const w = liveFrame.obj_w![i];
+      const l = liveFrame.obj_l![i];
+      const h = liveFrame.obj_h![i];
+      const heading = liveFrame.obj_heading![i];
+      const opacity = 0.5 + liveFrame.obj_conf![i] * 0.5;
+      const objClass = getObjectClass(typeName);
+      const badge = objClass === 'static' ? '[S]' : objClass === 'dynamic' ? '[D]' : '';
+
+      objects.push(
+        <group key={i} position={[tx, ty, tz]} rotation={[0, -heading, 0]}>
+          <lineSegments>
+            <edgesGeometry args={[new THREE.BoxGeometry(l, h, w)]} />
+            <lineBasicMaterial color={color} transparent opacity={opacity} />
+          </lineSegments>
+          <Html position={[0, h / 2 + 0.5, 0]} center>
+            <div
+              className="text-[12px] bg-(--color-1)/70 px-1 py-0.5 rounded whitespace-nowrap border"
+              style={{ color: color, borderColor: color }}
+            >
+              {badge} {typeName}
+            </div>
+          </Html>
+        </group>
+      );
+    }
+    return <group>{objects}</group>;
   }
 }
 
@@ -416,7 +420,7 @@ function CameraRig({ carPosRef }: { carPosRef: React.RefObject<THREE.Vector3> })
 
   useFrame(() => {
     if (!ctrlRef.current || !carPosRef.current) return;
-    
+
     if (!initialized.current) {
       ctrlRef.current.target.copy(carPosRef.current);
       camera.position.set(carPosRef.current.x - 18, 14, carPosRef.current.z + 16);
@@ -459,17 +463,17 @@ function Scene({ data, frameIdxRef, mode, liveFrame, visualMode }: {
   // Keep carPosRef current every frame
   useFrame(() => {
     if (mode === 'simulated') {
-        const fi = frameIdxRef.current ?? 0;
-        const vp = data.frames[fi].vehicle.position;
-        carPosRef.current.set(vp[0], vp[2], -vp[1]);
-        headingRef.current = data.frames[fi].vehicle.heading;
+      const fi = frameIdxRef.current ?? 0;
+      const vp = data.frames[fi].vehicle.position;
+      carPosRef.current.set(vp[0], vp[2], -vp[1]);
+      headingRef.current = data.frames[fi].vehicle.heading;
     } else if (liveFrame) {
-        // LiDAR sensor is ~1.73m above ground. Ground points are at Z ≈ -1.73.
-        // d2t maps Z to Y in Three.js. Car should sit on the ground plane.
-        const sensorHeight = -1.73; // Z of ground in sensor frame
-        const [tx, ty, tz] = d2t([0, 0, sensorHeight] as [number, number, number]);
-        carPosRef.current.set(tx, ty, tz);
-        headingRef.current = liveFrame.ego_heading;
+      // LiDAR sensor is ~1.73m above ground. Ground points are at Z ≈ -1.73.
+      // d2t maps Z to Y in Three.js. Car should sit on the ground plane.
+      const sensorHeight = -1.73; // Z of ground in sensor frame
+      const [tx, ty, tz] = d2t([0, 0, sensorHeight] as [number, number, number]);
+      carPosRef.current.set(tx, ty, tz);
+      headingRef.current = liveFrame.ego_heading;
     }
   });
 
@@ -480,8 +484,8 @@ function Scene({ data, frameIdxRef, mode, liveFrame, visualMode }: {
       <hemisphereLight color="#3060a0" groundColor="#080c14" intensity={2.5} />
       <directionalLight color="#c0d5ee" intensity={2} position={[30, 50, 20]} castShadow />
 
-      {/* Ground grid */}
-      <gridHelper args={[300, 60, '#121e30', '#0e1924']} position={[50, 0, 0]} />
+      {/* Ground grid aligned with the road/car level */}
+      <gridHelper args={[300, 60, '#121e30', '#0e1924']} position={[50, mode === 'simulated' ? -1.6 : -1.73, 0]} />
 
       <PointCloud
         points={data.static_environment.lidar_points}

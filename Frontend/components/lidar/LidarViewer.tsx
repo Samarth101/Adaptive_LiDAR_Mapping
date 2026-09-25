@@ -23,7 +23,7 @@ const ElevationMap3D = dynamic(() => import('@/components/lidar/ElevationMap3D')
 const ElevationSlice = dynamic(() => import('@/components/lidar/ElevationSlice'), { ssr: false });
 
 interface Props {
-  onFrameChange: (frame: Frame) => void;
+  onFrameChange?: (frame: Frame) => void;
 }
 
 export default function LidarViewer({ onFrameChange }: Props) {
@@ -196,7 +196,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
   }, [playing, data, mode]);
 
   useEffect(() => {
-    if (data && mode === 'simulated') onFrameChange(data.frames[frameIdx]);
+    if (data && mode === 'simulated') onFrameChange?.(data.frames[frameIdx]);
   }, [data, frameIdx, onFrameChange, mode]);
 
   const togglePlay = useCallback(() => setPlaying((p) => !p), []);
@@ -371,7 +371,7 @@ export default function LidarViewer({ onFrameChange }: Props) {
         {/* Metrics Section */}
         <div className="w-full max-w-6xl mx-auto relative">
           <div className="w-[calc(100%-64px)] h-10 bg-muted-foreground/70 backdrop-blur-lg rounded-full absolute -top-3 left-8 z-1" />
-          <div className="relative flex not-md:flex-col items-center gap-4 bg-card/70 backdrop-blur-lg z-10 rounded-4xl md:rounded-full border border-border px-8 py-3">
+          <div className="relative flex not-md:flex-col items-center gap-4 bg-radial from-transparent from-50% to-primary/7 to-100% backdrop-blur-lg z-10 rounded-4xl md:rounded-full border border-border px-8 py-3 text-shadow-2xs">
             <div className="not-md:w-full md:min-w-30 grow not-md:flex items-center justify-between gap-3">
               <div className="text-muted-foreground mb-1 md:text-xs">FPS</div>
               <div className="text-lg">{fps}</div>
@@ -395,9 +395,9 @@ export default function LidarViewer({ onFrameChange }: Props) {
         </div>
 
         {/* Panel 1: LiDAR Point Cloud */}
-        <div className="bg-card/30 backdrop-blur-xs border border-border rounded-xl shadow-sm h-fit p-3">
+        <div className="bg-card/30 backdrop-blur-xs border rounded-4xl shadow-sm h-fit p-3">
           <div className="w-full flex justify-between gap-3 mb-3">
-            <div className="w-fit h-fit bg-card rounded-sm px-3 py-2 text-sm">
+            <div className="w-fit h-fit bg-card rounded-xl px-3 py-2 text-sm">
               Live LiDAR Point Cloud
             </div>
             <div className="w-fit h-fit rounded-sm px-3 py-2 text-sm text-muted-foreground">
@@ -406,10 +406,10 @@ export default function LidarViewer({ onFrameChange }: Props) {
           </div>
 
           <div className="flex flex-col md:flex-row gap-3 justify-center">
-            <div className="relative w-full md:grow h-80 md:h-140 bg-background rounded-md overflow-hidden select-none">
+            <div className="relative w-full md:grow h-80 md:h-140 bg-background rounded-2xl overflow-hidden select-none">
               <LidarScene data={data} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} />
             </div>
-            <div className="w-full md:w-74 h-fit bg-card rounded-md shrink-0">
+            <div className="w-full md:w-74 h-fit bg-radial from-transparent from-25% to-primary/10 to-100% rounded-2xl shrink-0">
               <MetricsHUD
                 metrics={mode === 'simulated' ? frame.metrics : {
                   objects_detected: currentObjects,
@@ -424,9 +424,9 @@ export default function LidarViewer({ onFrameChange }: Props) {
         </div>
 
         {/* Panel 2: Semantic Map */}
-        <div className="bg-card/30 backdrop-blur-xs border border-border rounded-xl shadow-sm h-fit p-3">
+        <div className="bg-card/30 backdrop-blur-xs border rounded-4xl shadow-sm h-fit p-3">
           <div className="w-full flex justify-between gap-3 mb-3">
-            <div className="w-fit h-fit bg-card rounded-sm px-3 py-2 text-sm">
+            <div className="w-fit h-fit bg-card rounded-xl px-3 py-2 text-sm">
               Foveated Semantic Map
             </div>
             <div className="w-fit h-fit rounded-sm px-3 py-2 text-sm text-muted-foreground">
@@ -434,11 +434,11 @@ export default function LidarViewer({ onFrameChange }: Props) {
             </div>
           </div>
           <div className="flex flex-col md:flex-row gap-3 justify-center">
-            <div className="w-full md:w-74 h-fit bg-card rounded-md shrink-0">
+            <div className="w-full md:w-74 h-fit bg-card rounded-2xl shrink-0">
               <MemorySavingsHUD gridResult={simulatedGridResult} mode={mode} liveFrame={liveFrame} />
             </div>
             <div className="w-full grow space-y-3 min-w-0">
-              <div className="relative w-full h-80 md:h-140 bg-background rounded-md overflow-hidden">
+              <div className="relative w-full h-80 md:h-140 bg-background rounded-2xl overflow-hidden">
                 <SemanticMap2D data={data} frameIdx={frameIdx} mode={mode} liveFrame={liveFrame} />
               </div>
               <SemanticLegend />
@@ -447,25 +447,25 @@ export default function LidarViewer({ onFrameChange }: Props) {
         </div>
 
         {/* Panel 3: Elevation Map */}
-        <div className="bg-card/30 backdrop-blur-xs border border-border rounded-xl shadow-sm h-fit p-3 relative">
+        <div className="bg-card/30 backdrop-blur-xs border rounded-4xl shadow-sm h-fit p-3 relative">
           <div className="w-full flex justify-between gap-3 mb-3">
-            <div className="w-fit h-fit bg-card rounded-sm px-3 py-2 text-sm">
+            <div className="w-fit h-fit bg-card rounded-xl px-3 py-2 text-sm">
               Elevation Map
             </div>
             <div className="w-fit h-fit rounded-sm px-3 py-2 text-sm text-muted-foreground">
               3D · Height Gradient
             </div>
           </div>
-          <div className="relative w-full h-80 md:h-140 bg-background rounded-md overflow-hidden">
+          <div className="relative w-full h-80 md:h-140 bg-background rounded-2xl overflow-hidden">
             <ElevationMap3D data={data} frameIdxRef={frameIdxRef} mode={mode} liveFrame={liveFrame} />
           </div>
         </div>
 
         {/* Panel 4: Cross-section & Accuracy (Simulated Mode) */}
         {mode === 'simulated' && (
-          <div className="bg-card/30 backdrop-blur-xs border border-border rounded-xl shadow-sm h-fit p-3 relative">
+          <div className="bg-card/30 backdrop-blur-xs border rounded-4xl shadow-sm h-fit p-3 relative">
             <div className="w-full flex justify-between gap-3 mb-3">
-              <div className="w-fit h-fit bg-card rounded-sm px-3 py-2 text-sm">
+              <div className="w-fit h-fit bg-card rounded-xl px-3 py-2 text-sm">
                 Cross-Section & Accuracy
               </div>
               <div className="w-fit h-fit rounded-sm px-3 py-2 text-sm text-muted-foreground">

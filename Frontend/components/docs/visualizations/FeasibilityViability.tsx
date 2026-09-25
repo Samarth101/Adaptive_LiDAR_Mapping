@@ -1,34 +1,31 @@
-'use client';
-
-import React from 'react';
-import { 
-  CheckCircle2, 
-  Activity, 
-  Server, 
-  AlertTriangle, 
-  EyeOff, 
-  Clock, 
-  Settings, 
-  Save, 
-  Zap 
+import {
+  CheckCircle2,
+  Activity,
+  Server,
+  AlertTriangle,
+  EyeOff,
+  Clock,
+  Settings,
+  Save,
+  Zap
 } from 'lucide-react';
 
 export default function FeasibilityViability() {
   const feasibility = [
-    { 
-      icon: CheckCircle2, 
-      title: 'Technical Feasibility', 
-      desc: 'Uses established technologies such as SemanticKITTI, Cylinder3D / MinkUNet, adaptive grid mapping, DBSCAN and WebSocket streaming, making the solution technically implementable.' 
+    {
+      icon: CheckCircle2,
+      title: 'Technical Feasibility',
+      desc: 'Uses established technologies such as SemanticKITTI, Cylinder3D / MinkUNet, adaptive grid mapping, DBSCAN and WebSocket streaming, making the solution technically implementable.'
     },
-    { 
-      icon: Activity, 
-      title: 'Computational Feasibility', 
-      desc: 'The variable-resolution 2.5D representation reduces unnecessary processing and memory usage by focusing detail only where needed.' 
+    {
+      icon: Activity,
+      title: 'Computational Feasibility',
+      desc: 'The variable-resolution 2.5D representation reduces unnecessary processing and memory usage by focusing detail only where needed.'
     },
-    { 
-      icon: Server, 
-      title: 'Deployment Feasibility', 
-      desc: 'The modular pipeline (AI → adaptive mapping → object extraction → visualization) can be deployed on GPU-enabled systems and scaled for real-time autonomous perception.' 
+    {
+      icon: Server,
+      title: 'Deployment Feasibility',
+      desc: 'The modular pipeline (AI → adaptive mapping → object extraction → visualization) can be deployed on GPU-enabled systems and scaled for real-time autonomous perception.'
     }
   ];
 
@@ -69,48 +66,44 @@ export default function FeasibilityViability() {
   ];
 
   return (
-    <div className="flex-1 overflow-y-auto w-full max-w-7xl mx-auto px-4 py-8 space-y-12">
-      
-      {/* Feasibility Section */}
-      <div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {feasibility.map((item, i) => {
-            const Icon = item.icon;
-            return (
-              <div key={i} className="bg-card border border-border rounded-xl p-6 shadow-sm hover:border-primary/30 transition-colors">
-                <div className="flex items-center gap-3 mb-3">
-                  <Icon className="w-5 h-5 text-primary" />
-                  <h3 className="text-foreground font-medium text-sm">{item.title}</h3>
-                </div>
-                <p className="text-muted-foreground text-xs leading-relaxed">{item.desc}</p>
+    <div className="flex-1 overflow-y-auto min-h-0 w-full space-y-4">
+
+      {/* Feasibility cards */}
+      <div className="flex flex-col md:flex-row gap-4">
+        {feasibility.map((item, i) => {
+          const Icon = item.icon;
+          return (
+            <div key={i} className="bg-radial from-transparent from-25% to-primary/10 to-100% border border-border rounded-3xl p-4 space-y-3 flex-1">
+              <div className="flex items-center gap-2.5">
+                <Icon className="w-5 h-5 text-foreground/60" strokeWidth={1.5} />
+                <div className="text-foreground">{item.title}</div>
               </div>
-            );
-          })}
-        </div>
+              <div className="text-muted-foreground text-sm leading-relaxed">{item.desc}</div>
+            </div>
+          );
+        })}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
-        {/* Challenges Section */}
-        <div className="bg-card/50 border border-border rounded-2xl p-6 md:p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center border border-destructive/20">
-              <AlertTriangle className="w-5 h-5 text-destructive" />
-            </div>
-            <h2 className="text-xl text-foreground">Potential Challenges</h2>
+      {/* Challenges + Strategies */}
+      <div className="flex flex-col lg:flex-row gap-4">
+
+        {/* Challenges */}
+        <div className="flex-1 bg-radial from-transparent from-25% to-primary/10 to-100% border border-border rounded-3xl p-4 space-y-6">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-5 h-5 text-muted-foreground/60" strokeWidth={1.5} />
+            <div className="text-foreground">Potential Challenges</div>
           </div>
-          
-          <div className="space-y-6">
+          <div className="flex flex-col gap-5">
             {challenges.map((item, i) => {
               const Icon = item.icon;
               return (
-                <div key={i} className="flex gap-4">
-                  <div className="shrink-0 mt-1">
-                    <Icon className="w-4 h-4 text-destructive/70" />
+                <div key={i} className="flex gap-3">
+                  <div className="shrink-0 mt-0.5">
+                    <Icon className="w-4 h-4 text-muted-foreground/60" strokeWidth={1.5} />
                   </div>
                   <div>
-                    <h4 className="text-foreground text-sm mb-1">{item.title}</h4>
-                    <p className="text-muted-foreground text-xs leading-relaxed">{item.desc}</p>
+                    <div className="text-foreground/90 text-sm mb-1">{item.title}</div>
+                    <div className="text-muted-foreground text-sm leading-relaxed">{item.desc}</div>
                   </div>
                 </div>
               );
@@ -118,26 +111,23 @@ export default function FeasibilityViability() {
           </div>
         </div>
 
-        {/* Strategies Section */}
-        <div className="bg-primary/5 border border-primary/20 rounded-2xl p-6 md:p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center border border-primary/30">
-              <Zap className="w-5 h-5 text-primary" />
-            </div>
-            <h2 className="text-xl text-foreground">Strategies to Overcome</h2>
+        {/* Strategies */}
+        <div className="flex-1 bg-radial from-transparent from-25% to-primary/10 to-100% border border-border rounded-3xl p-4 space-y-6">
+          <div className="flex items-center gap-2.5">
+            <Zap className="w-5 h-5 text-muted-foreground/60" strokeWidth={1.5} />
+            <div className="text-foreground">Strategies to Overcome</div>
           </div>
-          
-          <div className="space-y-6">
+          <div className="space-y-4">
             {strategies.map((item, i) => {
               const Icon = item.icon;
               return (
-                <div key={i} className="flex gap-4">
-                  <div className="shrink-0 mt-1">
-                    <Icon className="w-4 h-4 text-primary" />
+                <div key={i} className="flex gap-3">
+                  <div className="shrink-0 mt-0.5">
+                    <Icon className="w-4 h-4 text-muted-foreground/60" strokeWidth={1.5} />
                   </div>
                   <div>
-                    <h4 className="text-foreground text-sm mb-1">{item.title}</h4>
-                    <p className="text-muted-foreground text-xs leading-relaxed">{item.desc}</p>
+                    <div className="text-foreground/90 text-sm mb-1">{item.title}</div>
+                    <div className="text-muted-foreground text-sm leading-relaxed">{item.desc}</div>
                   </div>
                 </div>
               );

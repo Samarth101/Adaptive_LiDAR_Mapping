@@ -211,10 +211,10 @@ export default function ElevationSlice({ data, frameIdx }: Props) {
 
   return (
     <div className="w-full h-full flex flex-col md:flex-row gap-3">
-      <div className="flex-1 relative rounded-md overflow-hidden bg-background">
+      <div className="flex-1 relative rounded-2xl overflow-hidden bg-background">
         <canvas ref={canvasRef} className="w-full h-full block" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} />
       </div>
-      <div className="flex-1 relative rounded-md overflow-hidden bg-background">
+      <div className="flex-1 relative rounded-2xl overflow-hidden bg-background">
         <AccuracyChart data={data} />
       </div>
     </div>
